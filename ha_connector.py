@@ -1,6 +1,11 @@
 import json
+import urllib.request
 from typing import Callable, Optional
-import requests
+
+try:
+    import requests
+except ImportError:
+    requests = None
 
 try:
     import paho.mqtt.client as mqtt
@@ -72,6 +77,18 @@ class HomeAssistantConnector:
         except Exception as e:
             print(f"⚠️ [HA-MQTT] 连接 MQTT 失败: {e}")
 
+    def _post_json(self, url: str, payload: dict):
+        if requests is not None:
+            requests.post(url, json=payload, timeout=2.5)
+        else:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            urllib.request.urlopen(req, timeout=2.5)
+
     def trigger_door_unlock(self, person_name: str, auth_mode: str, face_score: float, extra_detail: str = ""):
         """向 UTM 中的 Home Assistant 发送开门 Webhook"""
         url = f"{self.base_url}/api/webhook/{self.unlock_webhook_id}"
@@ -84,7 +101,7 @@ class HomeAssistantConnector:
         }
         print(f"🔓 [HA-Webhook] 验证通过！正在通知 Home Assistant 开门 -> {payload}")
         try:
-            requests.post(url, json=payload, timeout=2.5)
+            self._post_json(url, payload)
         except Exception as e:
             print(f"ℹ️ [HA-Webhook] (本地演示/未接通HA) 发送请求至 {url} 提示: {e}")
 
@@ -98,6 +115,6 @@ class HomeAssistantConnector:
         }
         print(f"🚨 [HA-Webhook] 触发可疑人员高危告警！ -> {payload}")
         try:
-            requests.post(url, json=payload, timeout=2.5)
+            self._post_json(url, payload)
         except Exception as e:
             print(f"ℹ️ [HA-Webhook] (本地演示/未接通HA) 告警请求至 {url} 提示: {e}")

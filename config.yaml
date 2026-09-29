@@ -41,12 +41,14 @@ vision:
   camera_source: 0
 
   face:
-    # 存放家里 6 个人单张生活照的目录（文件名即人名，如：爸爸.jpg、妈妈.jpg）
+    # 存放家里 6 个人单张生活照的目录（文件名即人名，如：爸爸1.jpg、爸爸.jpg、妈妈.jpg）
     db_dir: "./vision/db/faces"
-    # InsightFace 模型包名称 (buffalo_s 轻量极速，支持 Mac CoreML 加速)
-    model_name: "buffalo_s"
-    # 余弦相似度阈值 (> 0.45 即可确认为同一人)
-    similarity_threshold: 0.45
+    # 存放开源人脸 ONNX 模型权重的目录（OpenCV 原生直接加载，无需 pip 安装 insightface）
+    models_dir: "./vision/models"
+    det_model_path: "./vision/models/face_detection_yunet_2023mar.onnx"
+    rec_model_path: "./vision/models/face_recognition_sface_2021dec.onnx"
+    # 余弦相似度阈值 (> 0.38 即可确认为同一人)
+    similarity_threshold: 0.38
     # 最小人脸框像素宽度（过滤走廊远处路过的人，确保人在门前才触发开门）
     min_face_width_px: 90
     # 【可疑人员报警规则】陌生人在门厅停留超过多少秒触发抓拍报警

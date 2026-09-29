@@ -4,7 +4,11 @@ import time
 from typing import Optional
 import cv2
 import numpy as np
-import yaml
+
+try:
+    import yaml
+except ImportError:
+    yaml = None
 
 from vision import FaceEngine, GestureEngine
 from audio import VoiceEngine
@@ -28,8 +32,11 @@ class SmartDoorController:
     """
 
     def __init__(self, config_path: str = "config.yaml"):
-        with open(config_path, "r", encoding="utf-8") as f:
-            self.cfg = yaml.safe_load(f)
+        if yaml is not None and os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                self.cfg = yaml.safe_load(f) or {}
+        else:
+            self.cfg = {}
 
         sys_cfg = self.cfg.get("system", {})
         self.test_mode: bool = bool(sys_cfg.get("test_mode", True))
