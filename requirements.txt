@@ -1,0 +1,15 @@
+# 核心配置与网络通信
+pyyaml>=6.0
+requests>=2.31.0
+paho-mqtt>=1.6.1
+numpy>=1.24.0
+
+# 视觉目录 (./vision) 依赖：人脸检测识别 + MediaPipe 零训练手势
+opencv-python>=4.8.0
+insightface>=0.7.3
+onnxruntime>=1.16.0
+mediapipe>=0.10.9
+
+# 音频目录 (./audio) 依赖：3D-Speaker CAM++ 声纹提取 + 麦克风实时录音
+sherpa-onnx>=1.9.0
+sounddevice>=0.4.6

@@ -1,0 +1,82 @@
+# ==============================================================================
+# 全屋智能安防与双模态开门系统配置文件 (Mac 宿主机 + UTM Home Assistant)
+# ==============================================================================
+
+system:
+  # 是否开启本地测试模式（true: 直接使用 Mac 自带摄像头和麦克风，按空格键模拟涂鸦传感器有人）
+  test_mode: true
+  # 当涂鸦传感器检测到人后，开启视觉/声纹识别的最大持续窗口时间（秒）
+  active_window_sec: 15
+  # 开门成功后的冷却时间（秒），防止刚开门又重复触发
+  unlock_cooldown_sec: 10
+
+# ------------------------------------------------------------------------------
+# 1. Home Assistant & 涂鸦 Zigbee 传感器 (SLZB-06 / Zigbee2MQTT) 配置
+# ------------------------------------------------------------------------------
+home_assistant:
+  # UTM 虚拟机中 Home Assistant 的地址
+  base_url: "http://homeassistant.local:8123"
+  # HA 自动化中创建的 Webhook ID（无需 Token，直接触发开门或报警）
+  unlock_webhook_id: "ai_door_unlock_event"
+  alert_webhook_id: "ai_suspicious_alert_event"
+
+  # MQTT 配置 (用于毫秒级接收 SLZB-06 + Zigbee2MQTT 的涂鸦人体存在传感器信号)
+  mqtt:
+    enabled: false  # 本地测试时可先设为 false；接通 HA MQTT 后改为 true
+    broker_host: "homeassistant.local"
+    broker_port: 1883
+    username: ""
+    password: ""
+    # 涂鸦 Zigbee 人体存在传感器在 Zigbee2MQTT 中的主题名
+    tuya_sensor_topic: "zigbee2mqtt/foyer_tuya_presence"
+    # 触发开门识别的最大距离阈值（米）：人走近到门前 1.8 米内才开启开门认证
+    trigger_distance_max_m: 1.8
+
+# ------------------------------------------------------------------------------
+# 2. 视觉模块配置 (对应目录: ./vision/)
+# ------------------------------------------------------------------------------
+vision:
+  # 视频源：填 0 代表使用 Mac 自带摄像头；正式环境填门口摄像头的 RTSP 流地址
+  # 例如: "rtsp://admin:123456@192.168.1.50:554/stream1"
+  camera_source: 0
+
+  face:
+    # 存放家里 6 个人单张生活照的目录（文件名即人名，如：爸爸.jpg、妈妈.jpg）
+    db_dir: "./vision/db/faces"
+    # InsightFace 模型包名称 (buffalo_s 轻量极速，支持 Mac CoreML 加速)
+    model_name: "buffalo_s"
+    # 余弦相似度阈值 (> 0.45 即可确认为同一人)
+    similarity_threshold: 0.45
+    # 最小人脸框像素宽度（过滤走廊远处路过的人，确保人在门前才触发开门）
+    min_face_width_px: 90
+    # 【可疑人员报警规则】陌生人在门厅停留超过多少秒触发抓拍报警
+    stranger_loiter_alert_sec: 10.0
+    # 【恶意遮挡报警规则】涂鸦传感器显示贴门有人(<1.2m)，但连续多少秒检测不到任何人脸
+    no_face_occlusion_alert_sec: 6.0
+
+  gesture:
+    # 允许触发开门的目标手势列表 (可选: "OK", "OPEN_PALM", "VICTORY", "THUMB_UP")
+    unlock_gestures:
+      - "OK"
+      - "VICTORY"
+    # 连续多少帧检测到该手势才确认（防手臂晃动误触发，约 0.3 秒）
+    confirm_frames: 5
+    # 可选：专属手势绑定（如果不为空，则指定家人必须比对应手势；留空则全家人通用上面的手势）
+    person_gesture_map: {}
+      # "爸爸": "OK"
+      # "妈妈": "VICTORY"
+
+# ------------------------------------------------------------------------------
+# 3. 音频声纹模块配置 (对应目录: ./audio/)
+# ------------------------------------------------------------------------------
+audio:
+  # 存放家里 6 个人语音样本的目录（16kHz 单声道 wav，如：爸爸.wav、妈妈.wav）
+  db_dir: "./audio/db/voices"
+  # 3D-Speaker CAM++ 中文预训练 ONNX 模型路径 (位于 ./audio/models/ 下)
+  model_path: "./audio/models/3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx"
+  # 声纹 1:1 核验余弦相似度阈值 (因为已经有“人脸ID”做前置锚定，0.58~0.62 既安全又极易通过)
+  similarity_threshold: 0.60
+  # 每次声纹核验采集的语音时长（秒）
+  sample_duration_sec: 2.0
+  # 触发声纹采集的最小音量能量阈值 (RMS)，只有检测到人在说话时才送入声纹模型
+  vad_energy_threshold: 0.015
