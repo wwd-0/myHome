@@ -77,20 +77,25 @@ myHome/
 
 ## 🚀 快速开始
 
-### 1. 环境准备与依赖安装
+### 1. 环境准备（支持零额外 `pip` 依赖直接加载开源 `.onnx` 权重）
 
-建议使用 Python `3.9 ~ 3.11` 虚拟环境（macOS 需授予终端或 IDE **摄像头** 与 **麦克风** 权限）：
+本项目优先使用 **OpenCV (`cv2.FaceDetectorYN` + `cv2.FaceRecognizerSF`) 原生加载开源 ONNX 模型权重**，无需编译安装 `insightface` 或 `onnxruntime`，只需系统中已有 `opencv-python` 与 `numpy`（例如本机 `/opt/homebrew/bin/python3.11`）即可直接运行：
+
+- **YuNet 人脸检测 + 5点关键点权重**：[face_detection_yunet_2023mar.onnx](file:///Users/a58/work/code/myHome/vision/models/face_detection_yunet_2023mar.onnx) (`227 KB`)
+- **SFace 人脸特征提取权重**：[face_recognition_sface_2021dec.onnx](file:///Users/a58/work/code/myHome/vision/models/face_recognition_sface_2021dec.onnx) (`36.9 MB`)
+
+> **人脸识别单独测试（静态图核验 + 摄像头实时比对）**：
+> ```bash
+> /opt/homebrew/bin/python3.11 test_face.py
+> ```
+
+若需启用完整的多模态手势与声纹功能，也可在虚拟环境中安装完整依赖：
 
 ```bash
-# 创建并激活虚拟环境
 python3 -m venv .venv
 source .venv/bin/activate
-
-# 安装项目依赖
 pip install -r requirements.txt
 ```
-
-> **提示**：在 Apple Silicon (M1/M2/M3/M4) Mac 上，`onnxruntime` 默认支持 `CoreMLExecutionProvider`。首次启动时 `InsightFace` 会自动下载 `buffalo_s` 模型包至 `~/.insightface/models/buffalo_s/`。
 
 ### 2. 下载 3D-Speaker CAM++ 中文声纹模型
 

@@ -224,6 +224,35 @@ class FaceEngine:
             return best_name, best_score
         return "Stranger", best_score
 
+    @staticmethod
+    def _draw_utf8_text(
+        frame: np.ndarray, text: str, pos: Tuple[int, int], bgr_color: Tuple[int, int, int], font_size: int = 24
+    ) -> np.ndarray:
+        """支持中文 UTF-8 字符串绘制（优先使用 macOS 系统字体 + PIL，若无则回退 cv2.putText）"""
+        if Image is not None and any(ord(c) > 127 for c in text):
+            font_paths = [
+                "/System/Library/Fonts/PingFang.ttc",
+                "/System/Library/Fonts/STHeiti Medium.ttc",
+                "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+            ]
+            font = None
+            for fp in font_paths:
+                if os.path.exists(fp):
+                    try:
+                        font = ImageFont.truetype(fp, font_size)
+                        break
+                    except Exception:
+                        pass
+            if font is not None:
+                pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                draw = ImageDraw.Draw(pil_img)
+                rgb_color = (bgr_color[2], bgr_color[1], bgr_color[0])
+                draw.text((pos[0], max(0, pos[1] - font_size)), text, font=font, fill=rgb_color)
+                return cv2.cvtColor(np.asarray(pil_img), cv2.COLOR_RGB2BGR)
+
+        cv2.putText(frame, text, pos, cv2.FONT_HERSHEY_SIMPLEX, 0.65, bgr_color, 2)
+        return frame
+
     def analyze_frame(
         self, frame: np.ndarray, tuya_distance_m: Optional[float] = None
     ) -> Tuple[np.ndarray, Optional[Tuple[str, float]], Optional[str]]:
@@ -265,15 +294,7 @@ class FaceEngine:
             cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, 2)
             for pt in landmarks.astype(int):
                 cv2.circle(frame, (pt[0], pt[1]), 2, (255, 255, 0), -1)
-            cv2.putText(
-                frame,
-                tag,
-                (bbox[0], max(25, bbox[1] - 10)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.65,
-                color,
-                2,
-            )
+            frame = self._draw_utf8_text(frame, tag, (bbox[0], max(28, bbox[1] - 6)), color, font_size=24)
 
         # 安防规则 1：陌生人长时间徘徊检测
         if has_stranger and matched_family is None:
