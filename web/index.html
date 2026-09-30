@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MyHome C++17 智能门禁核验服务控制台</title>
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --card: #151c28;
+      --card-border: #243044;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #3b82f6;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 1260px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      padding: 18px 24px;
+      border-radius: 14px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand h1 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .brand p {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .status-pills {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      background: #1e293b;
+      border: 1px solid #334155;
+    }
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    .dot.idle { background: #38bdf8; box-shadow: 0 0 8px #38bdf8; }
+    .dot.active { background: var(--warning); box-shadow: 0 0 10px var(--warning); animation: pulse 1s infinite; }
+    .dot.online { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.35); opacity: 0.7; }
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 960px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #cbd5e1;
+    }
+
+    /* 视频预览窗 */
+    .video-box {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      background: #070a0f;
+      border: 1px solid #26334d;
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .video-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: none;
+    }
+    .video-placeholder {
+      text-align: center;
+      color: var(--muted);
+      padding: 24px;
+    }
+    .video-placeholder .icon {
+      font-size: 42px;
+      margin-bottom: 10px;
+    }
+    .window-bar-wrap {
+      margin-top: 12px;
+      background: #0d131f;
+      height: 8px;
+      border-radius: 99px;
+      overflow: hidden;
+      border: 1px solid #1e293b;
+    }
+    .window-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #3b82f6, #10b981);
+      transition: width 0.2s linear;
+    }
+
+    /* 控制按钮组 */
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1.4fr 0.8fr 1fr;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 10px;
+      padding: 13px 16px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+    }
+    button:active { transform: translateY(1px); }
+    .btn-primary {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+    }
+    .btn-primary:hover { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+    .btn-stop {
+      background: #334155;
+      color: #e2e8f0;
+    }
+    .btn-stop:hover { background: #475569; }
+    .btn-relay {
+      background: linear-gradient(135deg, #059669, #047857);
+    }
+    .btn-relay:hover { background: linear-gradient(135deg, #10b981, #059669); }
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+    }
+    .btn-sm:hover { background: #334155; }
+
+    /* ESP32-C6 光耦继电器状态卡片 */
+    .relay-box {
+      border: 1px solid #28364f;
+      background: #0e1522;
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.2s ease;
+    }
+    .relay-box.active {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.14);
+      box-shadow: 0 0 24px rgba(16, 185, 129, 0.28);
+    }
+    .relay-led {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #334155;
+      border: 3px solid #1e293b;
+      transition: all 0.15s ease;
+    }
+    .relay-box.active .relay-led {
+      background: #10b981;
+      border-color: #a7f3d0;
+      box-shadow: 0 0 18px #10b981;
+    }
+
+    /* 实时指标网格 */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .metric-item {
+      background: #0e1522;
+      border: 1px solid #1e293b;
+      padding: 12px;
+      border-radius: 10px;
+    }
+    .metric-label { font-size: 12px; color: var(--muted); }
+    .metric-val { font-size: 18px; font-weight: 700; margin-top: 4px; }
+
+    /* 表格与 JSON */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 8px;
+      border-bottom: 1px solid #1e293b;
+    }
+    th { color: var(--muted); font-weight: 500; }
+    .tag-pass {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 12px;
+    }
+    pre {
+      background: #090d14;
+      border: 1px solid #1e293b;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      color: #93c5fd;
+      overflow-x: auto;
+      max-height: 170px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <span style="font-size: 30px;">🛡️</span>
+        <div>
+          <h1>MyHome C++17 智能门禁算力核验控制台</h1>
+          <p>HA 传感器触发唤醒 · OpenCV C++ 极速推理 (YuNet + SFace + MediaPipe 21点骨骼) · ESP32-C6 光耦闭环</p>
+        </div>
+      </div>
+      <div class="status-pills">
+        <div class="pill">
+          <span id="connDot" class="dot online"></span>
+          <span id="connText">C++ 服务在线 (:8090)</span>
+        </div>
+        <div class="pill">
+          <span id="stateDot" class="dot idle"></span>
+          <span id="stateText">IDLE_SLEEP (0% CPU 休眠)</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- 左侧：实时拉流核验画面与传感器模拟按钮 -->
+      <div>
+        <div class="card">
+          <div class="card-title">
+            <span>📷 C++ 实时按需拉流与视觉核验画面</span>
+            <span id="countdownText" style="font-size:13px; color:#38bdf8;">等待传感器唤醒...</span>
+          </div>
+
+          <div class="video-box">
+            <img id="liveImg" alt="Live Stream" />
+            <div id="videoPlaceholder" class="video-placeholder">
+              <div class="icon">💤</div>
+              <div style="font-size: 15px; font-weight: 600; color: #cbd5e1;">当前处于 0% CPU 深度休眠待机状态（摄像头已完全释放）</div>
+              <div style="font-size: 13px; margin-top: 6px;">点击下方【📡 模拟涂鸦 24G 传感器有人】按钮，立即唤醒 C++ 拉流识别【家人正脸 + 手势】</div>
+            </div>
+          </div>
+
+          <div class="window-bar-wrap">
+            <div id="windowBar" class="window-bar"></div>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn-primary" onclick="triggerSensorWakeup()">
+              📡 模拟涂鸦 24G 传感器有人 (唤醒拉流)
+            </button>
+            <button class="btn-stop" onclick="stopVerifyStream()">
+              ⏹️ 停止拉流
+            </button>
+            <button class="btn-relay" onclick="testRelayPulse()">
+              ⚡ 点动测试光耦继电器
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>📜 开门与光耦吸合历史记录</span>
+            <span id="unlockCountBadge" style="font-size:12px; color:var(--muted);">累计开门: 0 次</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>识别家人</th>
+                <th>人脸相似度</th>
+                <th>确认手势</th>
+                <th>核验耗时</th>
+                <th>ESP32-C6 光耦动作</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody">
+              <tr><td colspan="6" style="text-align:center; color:var(--muted); padding: 18px;">暂无开门记录，请点击【模拟涂鸦 24G 传感器有人】并对着镜头比出 ✌️ 或 👌 手势</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 右侧：ESP32-C6 光耦继电器状态与实时遥测 -->
+      <div>
+        <div class="card">
+          <div class="card-title">
+            <span>🔌 ESP32-C6 + 光耦 (PC817) 继电器硬件状态</span>
+            <span style="font-size:12px; color:var(--muted);">点动脉冲: 500ms</span>
+          </div>
+          <div id="relayBox" class="relay-box">
+            <div>
+              <div id="relayTitle" style="font-size: 15px; font-weight: 700;">GPIO LOW · 光耦常开断开 (OFF)</div>
+              <div id="relayDesc" style="font-size: 12px; color: var(--muted); margin-top: 4px;">
+                等待 C++ 核验通过信号 -> 导通 500ms 触发门锁后自动断开
+              </div>
+            </div>
+            <div class="relay-led"></div>
+          </div>
+
+          <div class="metrics">
+            <div class="metric-item">
+              <div class="metric-label">当前画面锁定人物</div>
+              <div id="livePerson" class="metric-val" style="color:#34d399;">None</div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">实时余弦相似度</div>
+              <div id="liveScore" class="metric-val">0.000</div>
+            </div>
+            <div class="metric-item">
+              <div class="metric-label">已入库家庭成员</div>
+              <div id="enrolledList" class="metric-val" style="font-size:15px; color:#60a5fa;">加载中...</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 14px; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size: 12px; color: var(--muted);">支持手势: <b>OK 👌 / VICTORY ✌️ / OPEN_PALM 🖐️ / THUMB_UP 👍</b></span>
+            <button class="btn-sm" onclick="reloadFaceDb()">🔄 热重载照片底库</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>📦 最近一次 `/api/verify` 返回 JSON 载荷</span>
+            <span style="font-size:12px; color:var(--muted);">供 Home Assistant 接收</span>
+          </div>
+          <pre id="lastJsonBox">{}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.port === "8090" ? "" : "http://127.0.0.1:8090";
+    let isVerifying = false;
+    let hasShownFinalSnapshot = false;
+
+    async function triggerSensorWakeup() {
+      hasShownFinalSnapshot = false;
+      try {
+        await fetch(`${API_BASE}/api/start_verify`, { method: "POST" });
+        pollStatus();
+      } catch (e) {
+        alert("无法连接 C++ 服务，请确认 ./cpp_service/build/myhome_verify_server 正在运行！");
+      }
+    }
+
+    async function stopVerifyStream() {
+      await fetch(`${API_BASE}/api/stop_verify`, { method: "POST" });
+      pollStatus();
+    }
+
+    async function testRelayPulse() {
+      await fetch(`${API_BASE}/api/test_relay`, { method: "POST" });
+      pollStatus();
+    }
+
+    async function reloadFaceDb() {
+      const res = await fetch(`${API_BASE}/api/reload`, { method: "POST" });
+      const data = await res.json();
+      alert(`已热重载家人照片底库！当前入库成员: ${(data.members || []).join(", ")}`);
+      pollStatus();
+    }
+
+    async function pollStatus() {
+      try {
+        const res = await fetch(`${API_BASE}/api/status`);
+        const data = await res.json();
+
+        document.getElementById("connDot").className = "dot online";
+        document.getElementById("connText").innerText = "C++ 服务在线 (:8090)";
+
+        isVerifying = (data.state === "VERIFYING_STREAM");
+        const stateDot = document.getElementById("stateDot");
+        const stateText = document.getElementById("stateText");
+        if (isVerifying) {
+          stateDot.className = "dot active";
+          stateText.innerText = `VERIFYING_STREAM (拉流核验中 ${data.remaining_sec.toFixed(1)}s)`;
+          document.getElementById("countdownText").innerText = `剩余核验窗口: ${data.remaining_sec.toFixed(1)} 秒`;
+          const pct = Math.min(100, (data.remaining_sec / (data.window_sec || 15)) * 100);
+          document.getElementById("windowBar").style.width = `${pct}%`;
+        } else {
+          stateDot.className = "dot idle";
+          stateText.innerText = "IDLE_SLEEP (0% CPU 休眠待机)";
+          document.getElementById("countdownText").innerText = "摄像头已释放 · 等待传感器信号";
+          document.getElementById("windowBar").style.width = "0%";
+        }
+
+        // 更新画面显示
+        const liveImg = document.getElementById("liveImg");
+        const placeholder = document.getElementById("videoPlaceholder");
+        if (isVerifying) {
+          liveImg.src = `${API_BASE}/api/frame.jpg?t=${Date.now()}`;
+          liveImg.style.display = "block";
+          placeholder.style.display = "none";
+          hasShownFinalSnapshot = false;
+        } else if (data.last_result && data.last_result.passed && !hasShownFinalSnapshot) {
+          // 刚开门成功时，拉取并定格展示带绿色 UNLOCKED 横幅的最终抓拍帧
+          liveImg.src = `${API_BASE}/api/frame.jpg?t=${Date.now()}`;
+          liveImg.style.display = "block";
+          placeholder.style.display = "none";
+          hasShownFinalSnapshot = true;
+        }
+
+        // 更新 ESP32-C6 光耦继电器状态
+        const relayBox = document.getElementById("relayBox");
+        if (data.relay_active) {
+          relayBox.className = "relay-box active";
+          document.getElementById("relayTitle").innerText = "⚡ GPIO HIGH · 光耦导通吸合中 (500ms ON!)";
+          document.getElementById("relayDesc").innerText = "正在向门锁输出低阻导通脉冲 + 已同步上报 Home Assistant";
+        } else {
+          relayBox.className = "relay-box";
+          document.getElementById("relayTitle").innerText = "GPIO LOW · 光耦常开断开 (OFF)";
+          document.getElementById("relayDesc").innerText = "等待 C++ 核验通过信号 -> 导通 500ms 触发门锁后自动断开";
+        }
+
+        // 更新指标
+        document.getElementById("livePerson").innerText = data.live_person || "None";
+        document.getElementById("liveScore").innerText = (data.live_face_score || 0).toFixed(3);
+        document.getElementById("enrolledList").innerText = (data.enrolled_members || []).join(", ") || "无";
+        document.getElementById("unlockCountBadge").innerText = `累计开门: ${data.unlock_count || 0} 次`;
+        document.getElementById("lastJsonBox").innerText = JSON.stringify(data.last_result || {}, null, 2);
+
+        // 更新历史表格
+        const history = data.history || [];
+        const tbody = document.getElementById("historyBody");
+        if (history.length > 0) {
+          tbody.innerHTML = history.map(item => `
+            <tr>
+              <td>${item.time}</td>
+              <td style="font-weight:700; color:#60a5fa;">${item.person}</td>
+              <td>${item.face_score}</td>
+              <td><span class="tag-pass">🖐️ ${item.gesture}</span></td>
+              <td>${item.elapsed_ms} ms</td>
+              <td style="color:#34d399;">⚡ 导通 ${item.relay_pulse_ms}ms -> 自动断开</td>
+            </tr>
+          `).join("");
+        }
+      } catch (err) {
+        document.getElementById("connDot").className = "dot";
+        document.getElementById("connText").innerText = "C++ 服务未启动";
+      }
+    }
+
+    setInterval(pollStatus, 180);
+    pollStatus();
+  </script>
+</body>
+</html>
