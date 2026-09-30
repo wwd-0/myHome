@@ -224,25 +224,29 @@ class FaceEngine:
             return best_name, best_score
         return "Stranger", best_score
 
-    @staticmethod
+    _FONT_CACHE: Dict[int, object] = {}
+
+    @classmethod
     def _draw_utf8_text(
-        frame: np.ndarray, text: str, pos: Tuple[int, int], bgr_color: Tuple[int, int, int], font_size: int = 24
+        cls, frame: np.ndarray, text: str, pos: Tuple[int, int], bgr_color: Tuple[int, int, int], font_size: int = 24
     ) -> np.ndarray:
-        """支持中文 UTF-8 字符串绘制（优先使用 macOS 系统字体 + PIL，若无则回退 cv2.putText）"""
+        """支持中文 UTF-8 字符串绘制（使用内存缓存的 macOS 系统字体 + PIL，多人同框零磁盘开销）"""
         if Image is not None and any(ord(c) > 127 for c in text):
-            font_paths = [
-                "/System/Library/Fonts/PingFang.ttc",
-                "/System/Library/Fonts/STHeiti Medium.ttc",
-                "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-            ]
-            font = None
-            for fp in font_paths:
-                if os.path.exists(fp):
-                    try:
-                        font = ImageFont.truetype(fp, font_size)
-                        break
-                    except Exception:
-                        pass
+            font = cls._FONT_CACHE.get(font_size)
+            if font is None:
+                font_paths = [
+                    "/System/Library/Fonts/PingFang.ttc",
+                    "/System/Library/Fonts/STHeiti Medium.ttc",
+                    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+                ]
+                for fp in font_paths:
+                    if os.path.exists(fp):
+                        try:
+                            font = ImageFont.truetype(fp, font_size)
+                            cls._FONT_CACHE[font_size] = font
+                            break
+                        except Exception:
+                            pass
             if font is not None:
                 pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
                 draw = ImageDraw.Draw(pil_img)
