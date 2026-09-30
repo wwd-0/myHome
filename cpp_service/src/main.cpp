@@ -52,15 +52,13 @@ public:
                              const std::string& cam_source,
                              const std::string& ha_url,
                              const std::string& unlock_webhook,
-                             double window_sec,
-                             bool show_gui)
+                             double window_sec)
         : face_engine_(face_eng),
           gesture_engine_(gesture_eng),
           cam_source_(cam_source),
           ha_base_url_(ha_url),
           unlock_webhook_id_(unlock_webhook),
-          active_window_sec_(window_sec),
-          show_gui_(show_gui) {
+          active_window_sec_(window_sec) {
         last_result_ = json{
             {"passed", false},
             {"person", "None"},
@@ -330,21 +328,8 @@ public:
                         std::lock_guard<std::mutex> flk(frame_mtx_);
                         latest_jpeg_ = std::move(buf);
                     }
-
-                    if (show_gui_) {
-                        cv::imshow("MyHome C++17 Verify Service (Active Stream)", frame);
-                        int key = cv::waitKey(1) & 0xFF;
-                        if (key == 'q' || key == 27) {
-                            stop();
-                            break;
-                        }
-                    }
                 }
                 cap.release();
-                if (show_gui_) {
-                    cv::destroyAllWindows();
-                    cv::waitKey(1);
-                }
             }
 
             {
@@ -374,7 +359,6 @@ private:
     std::string ha_base_url_;
     std::string unlock_webhook_id_;
     double active_window_sec_;
-    bool show_gui_;
 
     std::mutex mtx_;
     std::mutex frame_mtx_;
@@ -543,13 +527,6 @@ int main(int argc, char** argv) {
     fs::current_path(root_dir);
 
     YAML::Node cfg = YAML::LoadFile("config.yaml");
-    bool show_gui = cfg["system"]["test_mode"].as<bool>(true);
-    for (int i = 1; i < argc; ++i) {
-        if (std::string(argv[i]) == "--no-gui") {
-            show_gui = false;
-        }
-    }
-
     double active_window_sec = cfg["system"]["active_window_sec"].as<double>(15.0);
     std::string ha_url = cfg["home_assistant"]["base_url"].as<std::string>("http://homeassistant.local:8123");
     std::string unlock_webhook = cfg["home_assistant"]["unlock_webhook_id"].as<std::string>("ai_door_unlock_event");
@@ -578,7 +555,7 @@ int main(int argc, char** argv) {
         confirm_frames);
 
     VerifyServiceCoordinator coordinator(
-        face_engine, gesture_engine, cam_source, ha_url, unlock_webhook, active_window_sec, show_gui);
+        face_engine, gesture_engine, cam_source, ha_url, unlock_webhook, active_window_sec);
 
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--self-test") {
