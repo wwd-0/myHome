@@ -16,19 +16,52 @@ class DetectedPerson:
     aligned_patch: np.ndarray           # 归一化为 (256, 128) [高 256, 宽 128] 的人体主体切片
 
 
+def crop_maximal_aspect_ratio(img_bgr: np.ndarray, target_hw: Tuple[int, int] = (512, 256)) -> Tuple[np.ndarray, Tuple[int, int, int, int]]:
+    """
+    按长宽比最大化保留画面内容进行居中截取，然后等比缩放到目标尺寸：
+    1. 绝不改变长宽比，人体/面部不拉伸、不压缩变形；
+    2. 最大化保留原始图片内容（宽图保留100%高度，高图保留100%宽度）；
+    3. 居中对称裁剪，适配门禁人员主体居中场景。
+    返回: (resized_patch, (crop_x, crop_y, crop_w, crop_h))
+    """
+    th, tw = target_hw
+    target_ratio = tw / th  # 默认 256 / 512 = 0.5 (宽:高 = 1:2)
+    h, w = img_bgr.shape[:2]
+    current_ratio = w / h
+
+    if current_ratio > target_ratio:
+        # 画面偏宽：100% 保留全部高度，左右居中截取宽度
+        crop_h = h
+        crop_w = max(1, int(round(h * target_ratio)))
+        x1 = max(0, (w - crop_w) // 2)
+        y1 = 0
+    else:
+        # 画面偏高：100% 保留全部宽度，上下居中截取高度
+        crop_w = w
+        crop_h = max(1, int(round(w / target_ratio)))
+        x1 = 0
+        y1 = max(0, (h - crop_h) // 2)
+
+    x2 = min(w, x1 + crop_w)
+    y2 = min(h, y1 + crop_h)
+    cropped = img_bgr[y1:y2, x1:x2]
+    resized = cv2.resize(cropped, (tw, th), interpolation=cv2.INTER_AREA)
+    return resized, (x1, y1, x2 - x1, y2 - y1)
+
+
 class LightweightDetector:
     """
     全姿态超轻量人体检测与切片处理器 (Lightweight Human Subject Detector)
     专为入户门禁复杂场景设计：
-    1. 即使看不到正脸 (低头、侧身、背身、帽子遮挡)，也能根据人体轮廓/头肩比精准锁定人物主体并提取 (256, 128) 切片
+    1. 即使看不到正脸 (低头、侧身、背身、帽子遮挡)，也能根据人体轮廓/头肩比精准锁定人物主体并提取 (512, 256) 切片
     2. 若能捕捉到侧脸或正脸，融合面部位置精细化校准头肩与躯干比例
-    3. 支持输入直接就是人物主体图像（自动保持 2:1 黄金高宽比做自适应 Letterbox 缩放，不产生形变）
+    3. 支持输入直接就是人物主体图像（自动保持 2:1 黄金高宽比做自适应裁剪缩放，不产生形变）
     """
     def __init__(self,
                  model_path: str = "",
-                 target_size: Tuple[int, int] = (256, 128),
+                 target_size: Tuple[int, int] = (512, 256),
                  score_threshold: float = 0.55):
-        self.target_size = target_size # (高度 256, 宽度 128)
+        self.target_size = target_size # (高度 512, 宽度 256)
         self.score_threshold = score_threshold
         self.yunet_detector = None
         self.input_size = (640, 640)
@@ -95,12 +128,11 @@ class LightweightDetector:
 
     def process_direct_subject(self, person_img: np.ndarray) -> DetectedPerson:
         """
-        当输入本身已保证是人物主体时（如拍摄照片、预先裁剪的人形图），直接做高质量归一化
+        按黄金长宽比最大化保留画面居中裁剪并归一化，严格保持自然长宽比不发生形变
         """
-        h, w = person_img.shape[:2]
-        aligned = self.letterbox_person(person_img, self.target_size)
+        aligned, crop_bbox = crop_maximal_aspect_ratio(person_img, self.target_size)
         return DetectedPerson(
-            bbox=(0, 0, w, h),
+            bbox=crop_bbox,
             confidence=1.0,
             has_face=False,
             is_profile_or_occluded=False,

@@ -26,7 +26,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(BASE_DIR, ".."))
 sys.path.insert(0, BASE_DIR)
 
-from core.detector import LightweightDetector
+from core.detector import LightweightDetector, DetectedPerson, crop_maximal_aspect_ratio
 from core.recognizer import PersonRecognizer, FrameSummary
 
 
@@ -133,14 +133,24 @@ class PersonInferenceEngine:
     def predict_and_annotate(self, image_bgr: np.ndarray) -> Dict:
         """对单帧执行纯净推理，并生成带炫彩标注的可视化图像"""
         t0 = time.time()
-        detected_persons = self.detector.detect(image_bgr)
-        rec_results = self.recognizer.identify_batch(detected_persons)
+        h_img, w_img = image_bgr.shape[:2]
+
+        # 统一长宽比最大化保留截取 + 缩放 (与训练集严格对齐：绝对不拉伸形变，居中保留最大画幅，512x256 高清分辨率)
+        patch, crop_bbox = crop_maximal_aspect_ratio(image_bgr, target_hw=(512, 256))
+        direct_subject = DetectedPerson(
+            bbox=crop_bbox,
+            confidence=1.0,
+            has_face=False,
+            is_profile_or_occluded=False,
+            landmarks=None,
+            aligned_patch=patch
+        )
+        rec_results = self.recognizer.identify_batch([direct_subject])
         summary: FrameSummary = self.recognizer.summarize_frame(rec_results)
         summary.latency_ms = round((time.time() - t0) * 1000.0, 2)
 
         # 绘制高端现代风格的标注图 (Bounding Box + 半透明磨砂角标)
         annotated = image_bgr.copy()
-        h_img, w_img = annotated.shape[:2]
 
         for p in summary.persons:
             bx = int(p["bbox"]["x"])

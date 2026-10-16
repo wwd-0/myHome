@@ -7,9 +7,17 @@ set -e
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
 
-echo "🚀 [1/3] 正在编译/检查 C++ 服务..."
-cmake -S cpp_service -B cpp_service/build > /dev/null
-make -C cpp_service/build -j8 > /dev/null
+unset http_proxy https_proxy ALL_PROXY all_proxy HTTP_PROXY HTTPS_PROXY
+export no_proxy="*"
+export NO_PROXY="*"
+
+if [ ! -f "cpp_service/build/myhome_verify_server" ]; then
+    echo "🚀 [1/3] 正在编译 C++ 服务..."
+    cmake -S cpp_service -B cpp_service/build > /dev/null
+    make -C cpp_service/build -j8 > /dev/null
+else
+    echo "🚀 [1/3] C++ 服务二进制已就绪，跳过编译..."
+fi
 
 echo "🛑 [2/3] 清理旧端口占用..."
 pkill -f "door_person_detector/service.py" 2>/dev/null || true

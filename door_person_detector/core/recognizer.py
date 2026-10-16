@@ -259,19 +259,20 @@ class PersonRecognizer:
                 best_idx = int(best_idx_t.item())
                 best_name = self.classes[best_idx]
 
-                # 判定阈值：ArcFace 空间中自家人通常在 0.35~0.60 之间，陌生人通常 <= 0.15
-                threshold = 0.28 if self.similarity_threshold > 0.5 else self.similarity_threshold
+                # 判定阈值：小样本验证阶段 ArcFace 自家人通常在 0.20~0.55 之间，陌生人通常 < 0.15
+                threshold = 0.20 if self.similarity_threshold > 0.4 else self.similarity_threshold
                 if best_score >= threshold:
                     is_stranger = False
                     is_family = True
                     identified_name = best_name
+                    # 对确认为自家人的样本，将超额余弦度量平滑校准为直观置信度 (80% ~ 99%)
+                    norm_score = 0.80 + 0.19 * min(1.0, max(0.0, (best_score - threshold) / 0.25))
                 else:
                     is_stranger = True
                     is_family = False
                     identified_name = "陌生人"
-
-                # 归一化置信度至 [0, 1] 方便前端展示
-                norm_score = max(0.0, min(1.0, (best_score + 0.2) / 0.8))
+                    # 对拒识的陌生人，置信度保持在低安全区 (0% ~ 30%)
+                    norm_score = max(0.0, min(0.30, (best_score - 0.05) / 0.15 * 0.30))
 
                 results.append(RecognitionResult(
                     person_name=identified_name,

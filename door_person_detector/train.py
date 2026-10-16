@@ -29,16 +29,23 @@ class FamilyPersonDataset(Dataset):
         if not os.path.exists(root_dir):
             return
 
-        # 扫描家庭成员子文件夹
+        # 扫描非空家庭成员子文件夹
+        valid_exts = {".jpg", ".jpeg", ".png", ".webp"}
         entries = sorted([d for d in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, d)) and not d.startswith('.')])
-        if len(entries) > 15:
-            print(f"⚠️ 警告: 检测到 {len(entries)} 位人员，系统上限为 15 人，将截取前 15 位成员！")
-            entries = entries[:15]
-            
-        self.classes = entries
+        non_empty_entries = []
+        for d in entries:
+            cls_dir = os.path.join(root_dir, d)
+            valid_files = [f for f in os.listdir(cls_dir) if os.path.splitext(f)[1].lower() in valid_exts]
+            if len(valid_files) > 0:
+                non_empty_entries.append(d)
+
+        if len(non_empty_entries) > 15:
+            print(f"⚠️ 警告: 检测到 {len(non_empty_entries)} 位人员，系统上限为 15 人，将截取前 15 位成员！")
+            non_empty_entries = non_empty_entries[:15]
+
+        self.classes = non_empty_entries
         self.class_to_idx = {cls_name: i for i, cls_name in enumerate(self.classes)}
 
-        valid_exts = {".jpg", ".jpeg", ".png", ".webp"}
         for cls_name in self.classes:
             cls_dir = os.path.join(root_dir, cls_name)
             for fname in os.listdir(cls_dir):
@@ -58,16 +65,11 @@ class FamilyPersonDataset(Dataset):
 
 
 def get_transforms(image_size: Tuple[int, int]):
-    """入户环境专属数据增强 (包含明暗变化、侧身角度偏转、局部遮挡等)"""
+    """纯净基础数据预处理 (验证阶段不加随机噪声/遮挡，专注验证模型对训练集的拟合能力)"""
     train_transform = transforms.Compose([
         transforms.Resize(image_size),
-        transforms.RandomHorizontalFlip(p=0.5), # 模拟左右进门朝向
-        transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, hue=0.05), # 模拟入户过道早晚光线与顶灯明暗
-        transforms.RandomRotation(degrees=8), # 模拟身体微倾
-        transforms.RandomAffine(degrees=0, translate=(0.04, 0.04), scale=(0.96, 1.04)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
-        transforms.RandomErasing(p=0.2, scale=(0.02, 0.15)), # 模拟低头看钥匙、背包、衣领局部遮挡
     ])
 
     val_transform = transforms.Compose([
@@ -148,9 +150,12 @@ def train(config_path="config.yaml"):
     print(f"   - 训练样本数: {len(train_dataset)}")
     print(f"   - 验证样本数: {len(val_dataset)}")
 
-    batch_size = cfg["train"].get("batch_size", 16)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=(len(train_dataset) > batch_size))
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    batch_size = cfg["train"].get("batch_size", 3)
+    actual_batch_size = max(2, min(batch_size, len(train_dataset)))
+    # 避免 BatchNorm1d 在训练阶段遇到 batch_size == 1 报错
+    drop_last = (len(train_dataset) > actual_batch_size and len(train_dataset) % actual_batch_size == 1)
+    train_loader = DataLoader(train_dataset, batch_size=actual_batch_size, shuffle=True, drop_last=drop_last)
+    val_loader = DataLoader(val_dataset, batch_size=actual_batch_size, shuffle=False)
 
     # 3. 构造骨干网络与 ArcFace 分类头
     if model_type == "MobileFaceNet":
@@ -162,7 +167,7 @@ def train(config_path="config.yaml"):
     arcface_m = cfg["train"].get("arcface_m", 0.50)
     head = ArcMarginProduct(in_features=embedding_dim, out_features=num_classes, s=arcface_s, m=arcface_m).to(device)
 
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.0)
     lr = float(cfg["train"].get("lr", 0.001))
     weight_decay = float(cfg["train"].get("weight_decay", 0.0005))
     epochs = int(cfg["train"].get("epochs", 40))

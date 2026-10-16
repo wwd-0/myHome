@@ -1,58 +1,34 @@
-# ==============================================================================
-# door_person_detector 生产级入户人员检测与识别模型配置文件
-# 专注纯净模型推理与感知输出：具体几个人、几个自家人、具体是谁等
-# ==============================================================================
-
-system:
-  # 推理设备: "mps" (Mac Metal加速，推理极快), "cpu", 或 "cuda" (Nvidia GPU)
-  device: "mps"
-  # 模型类型: "LightPersonIDNet" (推荐: 支持正面、侧脸、无面部低头/背身全方位人体识别)
-  # 备选: "MobileFaceNet" (纯人脸模式)
-  model_type: "LightPersonIDNet"
-  # 输入模型图像尺寸: [高度 256, 宽度 128] (符合人体 2:1 自然高宽比，支持人脸、侧脸及无脸人体主体)
-  image_size: [256, 128]
-  # 特征向量维度 (512维高精度嵌入)
-  embedding_dim: 512
-
-# 家庭成员名单配置 (最多支持 15 人，未登记人员或置信度低于阈值一律归属为陌生人)
 family:
   max_members: 15
-  # 登记的家庭成员姓名（上限15人）
   members:
-    - "爸爸"
-    - "妈妈"
-    - "孩子"
-    - "爷爷"
-    - "奶奶"
-
-# 识别阈值配置
-thresholds:
-  # 余弦相似度识别门限: 0.0 ~ 1.0 (>= 该值判定为该家庭成员；< 该值严密判定为 [陌生人])
-  similarity_threshold: 0.75
-  # 最小人脸/人体特征框像素宽度: 过滤极远处路过人员
-  min_face_width_px: 80
-
-# 路径配置
+  - 爸爸
+  - 妈妈
+  - 孩子
+  - 爷爷
+  - 奶奶
 paths:
-  # 前置超轻量检测器权重 (默认直接复用项目中已有的 232KB YuNet ONNX 模型)
-  detector_model_path: "../vision/models/face_detection_yunet_2023mar.onnx"
-  # 训练与微调数据集路径
-  train_dir: "./data/dataset/train"
-  val_dir: "./data/dataset/val"
-  strangers_dir: "./data/dataset/strangers"
-  # 家人底库特征向量文件 (零样本/少样本即插即用)
-  gallery_file: "./data/gallery/family_gallery.json"
-  # 模型权重保存目录
-  weights_dir: "./weights"
-  best_model_path: "./weights/best_model.pth"
-  onnx_model_path: "./weights/best_model.onnx"
-
-# 训练超参数 (后续使用自己采集的新数据训练时使用)
+  best_model_path: ./weights/best_model.pth
+  detector_model_path: ../vision/models/face_detection_yunet_2023mar.onnx
+  gallery_file: ./data/gallery/family_gallery.json
+  onnx_model_path: ./weights/best_model.onnx
+  strangers_dir: ./data/dataset/strangers
+  train_dir: ./data/dataset/train
+  val_dir: ./data/dataset/val
+  weights_dir: ./weights
+system:
+  device: mps
+  embedding_dim: 512
+  image_size:
+  - 512
+  - 256
+  model_type: LightPersonIDNet
+thresholds:
+  min_face_width_px: 80
+  similarity_threshold: 0.75
 train:
-  epochs: 60
-  batch_size: 16
-  lr: 0.001
-  weight_decay: 0.0005
-  # ArcFace 边际参数 (m: 角度裕度, s: 特征尺度因子)
+  arcface_m: 0.5
   arcface_s: 32.0
-  arcface_m: 0.50
+  batch_size: 3
+  epochs: 60
+  lr: 0.0015
+  weight_decay: 0.0005
