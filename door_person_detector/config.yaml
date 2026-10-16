@@ -1,0 +1,80 @@
+# ==============================================================================
+# door_person_detector 生产级入户人员检测与识别系统配置文件
+# ==============================================================================
+
+system:
+  # 推理设备: "mps" (Mac Metal加速，推理极快), "cpu", 或 "cuda" (Nvidia GPU)
+  device: "mps"
+  # 模型类型: "LightPersonIDNet" (推荐: 支持正面、侧脸、无面部低头/背身全方位人体识别)
+  # 备选: "MobileFaceNet" (纯人脸模式)
+  model_type: "LightPersonIDNet"
+  # 输入模型图像尺寸: [高度 256, 宽度 128] (符合人体 2:1 自然高宽比，支持人脸、侧脸及无脸人体主体)
+  image_size: [256, 128]
+  # 特征向量维度 (512维高精度嵌入)
+  embedding_dim: 512
+
+# 家庭成员名单配置 (最多支持 15 人，未登记人员或置信度低于阈值一律归属为陌生人)
+family:
+  max_members: 15
+  # 登记的家庭成员姓名（后续可按实际情况修改或新增，上限15人）
+  members:
+    - "爸爸"
+    - "妈妈"
+    - "孩子"
+    - "爷爷"
+    - "奶奶"
+
+# 识别与核验阈值 (生产级安全标准)
+thresholds:
+  # 余弦相似度识别门限: 0.0 ~ 1.0 (>= 该值判定为该家庭成员；< 该值严密判定为 [陌生人])
+  similarity_threshold: 0.75
+
+  # 自动开门专属安全阈值: 必须达到更高置信度才允许开门 (防误开门安全红线)
+  unlock_threshold: 0.80
+
+  # 最小人脸/人体特征框像素宽度: 过滤远处走廊路过人员，确保人在门前才触发开门
+  min_face_width_px: 80
+
+# 自动开门控制器配置 (后续联动自动开门系统)
+door_unlock:
+  # 是否开启自动开门联动动作 (测试阶段可设为 false，实测成熟后开启)
+  enable_auto_unlock: true
+  # 防抖连续确认帧数: 连续 N 帧识别为同一家庭成员方可开门 (杜绝单帧抖动或偶发误识别)
+  confirm_consecutive_frames: 3
+  # 开门动作冷却时间 (秒): 成功触发一次开门后，在该时间内不再重复触发
+  cooldown_seconds: 10.0
+  # 多人同框开门安全策略 (防尾随/防挟持安全红线):
+  # false: 严格防尾随模式 (若自家人身边同时存在陌生人，不自动开门，并触发尾随告警)
+  # true:  便利通行模式 (只要门前有已授权自家人即开门，并记录同行陌生人)
+  allow_unlock_with_stranger: false
+  # Home Assistant 自动开门 Webhook 接口 (直接联动宿主 HA 或 ESP32 继电器)
+  ha_webhook_url: "http://homeassistant.local:8123/api/webhook/ai_door_unlock_event"
+  # Home Assistant 陌生人尾随/可疑警报 Webhook 接口 (可选)
+  ha_stranger_alert_webhook_url: "http://homeassistant.local:8123/api/webhook/ai_suspicious_alert_event"
+  # 是否开启本地蜂鸣提示/终端日志记录
+  sound_alert: false
+
+# 路径配置
+paths:
+  # 前置超轻量检测器权重 (默认直接复用项目中已有的 232KB YuNet ONNX 模型)
+  detector_model_path: "../vision/models/face_detection_yunet_2023mar.onnx"
+  # 训练与微调数据集路径
+  train_dir: "./data/dataset/train"
+  val_dir: "./data/dataset/val"
+  strangers_dir: "./data/dataset/strangers"
+  # 家人底库特征向量文件 (零样本/少样本即插即用)
+  gallery_file: "./data/gallery/family_gallery.json"
+  # 模型权重保存目录
+  weights_dir: "./weights"
+  best_model_path: "./weights/best_model.pth"
+  onnx_model_path: "./weights/best_model.onnx"
+
+# 训练超参数 (后续使用自己采集的新数据训练时使用)
+train:
+  epochs: 60
+  batch_size: 16
+  lr: 0.001
+  weight_decay: 0.0005
+  # ArcFace 边际参数 (m: 角度裕度, s: 特征尺度因子)
+  arcface_s: 32.0
+  arcface_m: 0.50
