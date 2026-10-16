@@ -18,13 +18,12 @@ def evaluate_model(config_path="config.yaml"):
     val_dir = cfg["paths"]["val_dir"]
     strangers_dir = cfg["paths"]["strangers_dir"]
     target_thresh = cfg["thresholds"]["similarity_threshold"]
-    unlock_thresh = cfg["thresholds"]["unlock_threshold"]
 
     print("\n=======================================================")
-    print("🔍 启动入户人员识别模型性能与安全门限评估")
+    print("🔍 启动入户人员识别模型性能与安全门限评估 (纯数据集)")
     print(f"权重路径: {weights_path}")
     print(f"底库路径: {gallery_path}")
-    print(f"配置识别阈值: {target_thresh} | 开门安全阈值: {unlock_thresh}")
+    print(f"配置识别阈值: {target_thresh}")
     print("=======================================================\n")
 
     recognizer = PersonRecognizer(
@@ -32,7 +31,6 @@ def evaluate_model(config_path="config.yaml"):
         gallery_path=gallery_path,
         model_type=cfg["system"].get("model_type", "LightPersonIDNet"),
         similarity_threshold=target_thresh,
-        unlock_threshold=unlock_thresh,
         device=cfg["system"].get("device", "mps")
     )
 
@@ -65,7 +63,7 @@ def evaluate_model(config_path="config.yaml"):
     tar = (family_correct / max(1, family_total)) * 100.0
     avg_family_score = np.mean(family_scores) if family_scores else 0.0
 
-    # 2. 评估陌生人测试集 (FAR: 误识率 / 陌生人误当家人开门率)
+    # 2. 评估陌生人测试集 (FAR: 误识率 / 陌生人误当家人率)
     stranger_total = 0
     stranger_false_alarms = 0
     stranger_scores: List[float] = []
@@ -94,7 +92,7 @@ def evaluate_model(config_path="config.yaml"):
     print(f"• 自家人平均相似度得分: {avg_family_score:.4f}")
     print(f"-------------------------------------------------------")
     print(f"• 陌生人测试样本总数: {stranger_total}")
-    print(f"• 陌生人误判开门率 (FAR): {far:.1f}% ({stranger_false_alarms}/{stranger_total})")
+    print(f"• 陌生人误判率 (FAR): {far:.1f}% ({stranger_false_alarms}/{stranger_total})")
     print(f"• 陌生人最高相似度得分: {max_stranger_score:.4f}")
     print(f"-------------------------------------------------------")
 
@@ -106,11 +104,6 @@ def evaluate_model(config_path="config.yaml"):
     else:
         suggested = max_stranger_score + 0.05
         print(f"⚠️ 警告: 陌生人最高得分 ({max_stranger_score:.4f}) 接近或超过了识别阈值，建议将 threshold 上调至: {suggested:.2f}")
-
-    if avg_family_score >= unlock_thresh:
-        print(f"✅ 开门专属高阈值 ({unlock_thresh}) 正常，自家人识别通过顺畅。")
-    else:
-        print(f"ℹ️ 提示: 自家人平均相似度较平缓，可收集更多光照或姿态切片继续提升特征聚类。")
 
 
 if __name__ == "__main__":

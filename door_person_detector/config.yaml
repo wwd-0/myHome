@@ -1,5 +1,6 @@
 # ==============================================================================
-# door_person_detector 生产级入户人员检测与识别系统配置文件
+# door_person_detector 生产级入户人员检测与识别模型配置文件
+# 专注纯净模型推理与感知输出：具体几个人、几个自家人、具体是谁等
 # ==============================================================================
 
 system:
@@ -16,7 +17,7 @@ system:
 # 家庭成员名单配置 (最多支持 15 人，未登记人员或置信度低于阈值一律归属为陌生人)
 family:
   max_members: 15
-  # 登记的家庭成员姓名（后续可按实际情况修改或新增，上限15人）
+  # 登记的家庭成员姓名（上限15人）
   members:
     - "爸爸"
     - "妈妈"
@@ -24,35 +25,12 @@ family:
     - "爷爷"
     - "奶奶"
 
-# 识别与核验阈值 (生产级安全标准)
+# 识别阈值配置
 thresholds:
   # 余弦相似度识别门限: 0.0 ~ 1.0 (>= 该值判定为该家庭成员；< 该值严密判定为 [陌生人])
   similarity_threshold: 0.75
-
-  # 自动开门专属安全阈值: 必须达到更高置信度才允许开门 (防误开门安全红线)
-  unlock_threshold: 0.80
-
-  # 最小人脸/人体特征框像素宽度: 过滤远处走廊路过人员，确保人在门前才触发开门
+  # 最小人脸/人体特征框像素宽度: 过滤极远处路过人员
   min_face_width_px: 80
-
-# 自动开门控制器配置 (后续联动自动开门系统)
-door_unlock:
-  # 是否开启自动开门联动动作 (测试阶段可设为 false，实测成熟后开启)
-  enable_auto_unlock: true
-  # 防抖连续确认帧数: 连续 N 帧识别为同一家庭成员方可开门 (杜绝单帧抖动或偶发误识别)
-  confirm_consecutive_frames: 3
-  # 开门动作冷却时间 (秒): 成功触发一次开门后，在该时间内不再重复触发
-  cooldown_seconds: 10.0
-  # 多人同框开门安全策略 (防尾随/防挟持安全红线):
-  # false: 严格防尾随模式 (若自家人身边同时存在陌生人，不自动开门，并触发尾随告警)
-  # true:  便利通行模式 (只要门前有已授权自家人即开门，并记录同行陌生人)
-  allow_unlock_with_stranger: false
-  # Home Assistant 自动开门 Webhook 接口 (直接联动宿主 HA 或 ESP32 继电器)
-  ha_webhook_url: "http://homeassistant.local:8123/api/webhook/ai_door_unlock_event"
-  # Home Assistant 陌生人尾随/可疑警报 Webhook 接口 (可选)
-  ha_stranger_alert_webhook_url: "http://homeassistant.local:8123/api/webhook/ai_suspicious_alert_event"
-  # 是否开启本地蜂鸣提示/终端日志记录
-  sound_alert: false
 
 # 路径配置
 paths:

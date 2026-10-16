@@ -8,7 +8,6 @@ import numpy as np
 
 from core.detector import LightweightDetector
 from core.recognizer import PersonRecognizer
-from core.door_controller import DoorUnlockController
 
 
 def run_inference(image_path: str,
@@ -22,8 +21,6 @@ def run_inference(image_path: str,
     weights_path = cfg["paths"]["best_model_path"]
     gallery_path = cfg["paths"]["gallery_file"]
     similarity_thresh = cfg["thresholds"]["similarity_threshold"]
-    unlock_thresh = cfg["thresholds"]["unlock_threshold"]
-    min_face_w = cfg["thresholds"]["min_face_width_px"]
 
     detector = LightweightDetector(target_size=(256, 128))
     recognizer = PersonRecognizer(
@@ -31,20 +28,7 @@ def run_inference(image_path: str,
         gallery_path=gallery_path,
         model_type=cfg["system"].get("model_type", "LightPersonIDNet"),
         similarity_threshold=similarity_thresh,
-        unlock_threshold=unlock_thresh,
-        min_face_width_px=min_face_w,
         device=device
-    )
-    allow_with_stranger = cfg["door_unlock"].get("allow_unlock_with_stranger", False)
-    stranger_alert_webhook = cfg["door_unlock"].get("ha_stranger_alert_webhook_url", "")
-
-    door_ctrl = DoorUnlockController(
-        enabled=cfg["door_unlock"].get("enable_auto_unlock", True),
-        confirm_consecutive_frames=cfg["door_unlock"].get("confirm_consecutive_frames", 3),
-        cooldown_seconds=cfg["door_unlock"].get("cooldown_seconds", 10.0),
-        allow_unlock_with_stranger=allow_with_stranger,
-        ha_webhook_url=cfg["door_unlock"].get("ha_webhook_url", ""),
-        ha_stranger_alert_webhook_url=stranger_alert_webhook
     )
 
     img = cv2.imread(image_path)
@@ -52,24 +36,19 @@ def run_inference(image_path: str,
         print(f"❌ 无法读取图片: {image_path}")
         return
 
-    t_start = time.time()
-    # 1. 执行模型纯净端到端推理 (输入图片 -> 输出具体人数、自家人数、具体是谁等纯净感知数据)
+    # 纯净端到端模型推理 (输入图片 -> 识别画面有几个人、几个自家人、具体是谁)
     summary = recognizer.predict_image(img, detector=detector)
 
     print(f"\n📸 图片分析: {os.path.basename(image_path)} (分辨率: {img.shape[1]}x{img.shape[0]})")
     print(f"📊【模型纯净感知输出】:")
-    print(f"  • 画面总人数: {summary.total_persons} 人")
-    print(f"  • 自家人数:   {summary.family_count} 人 ({'、'.join(summary.family_members) if summary.family_members else '无'})")
-    print(f"  • 陌生人数:   {summary.stranger_count} 人")
-    print(f"  • 推理总耗时: {summary.latency_ms:.2f} ms")
+    print(f"  • 画面总人数:   {summary.total_persons} 人")
+    print(f"  • 自家人数:     {summary.family_count} 人 ({'、'.join(summary.family_members) if summary.family_members else '无'})")
+    print(f"  • 陌生人数:     {summary.stranger_count} 人")
+    print(f"  • 推理总耗时:   {summary.latency_ms:.2f} ms")
     print(f"  • 各主体明细:")
     for idx, p in enumerate(summary.persons):
-        tag = "自家人" if not p["is_stranger"] else "陌生人"
+        tag = "自家人" if p["is_family"] else "陌生人"
         print(f"    [主体 #{idx+1}] 身份: 【{p['name']}】({tag}) | 置信度: {p['score']:.4f} | 状态: {p['status']} | 坐标: {p['bbox']}")
-
-    # 2. 独立下游业务逻辑处理 (可选：开门判定、尾随分析等，完全解耦)
-    unlocked, status_msg = door_ctrl.process_frame_results(recognizer.identify_batch(detector.detect(img)))
-    print(f"  • 下游处理参考: {status_msg}")
 
     annotated = img.copy()
 
@@ -77,19 +56,16 @@ def run_inference(image_path: str,
         x, y, w, h = p["bbox"]["x"], p["bbox"]["y"], p["bbox"]["w"], p["bbox"]["h"]
         is_stranger = p["is_stranger"]
 
-        # 视觉标注
         color = (0, 255, 0) if not is_stranger else (0, 0, 255)
         cv2.rectangle(annotated, (x, y), (x + w, y + h), color, 3)
 
         label = f"{p['name']} ({p['score']:.2f}) [{p['status']}]"
-        # 标签背景框
         (lw, lh), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.65, 2)
         cv2.rectangle(annotated, (x, max(0, y - lh - 10)), (x + lw + 8, y), color, -1)
         cv2.putText(annotated, label, (x + 4, max(lh + 2, y - 4)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)
 
-    # 顶部 HUD 信息
-    hud_text = f"Latency: {summary.latency_ms:.1f}ms | Persons: {summary.total_persons} (Family: {summary.family_count})"
+    hud_text = f"Latency: {summary.latency_ms:.1f}ms | Persons: {summary.total_persons} (Family: {summary.family_count}, Stranger: {summary.stranger_count})"
     cv2.putText(annotated, hud_text, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
 
     if save_output:
@@ -100,7 +76,7 @@ def run_inference(image_path: str,
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="入户人员检测与识别单图/批量推理工具")
+    parser = argparse.ArgumentParser(description="入户人员检测与识别纯净推理工具 (图片/文件夹)")
     parser.add_argument("--image", type=str, help="待检测的单张图片路径")
     parser.add_argument("--dir", type=str, help="待批量检测的图片目录")
     parser.add_argument("--config", type=str, default="config.yaml", help="配置文件路径")
@@ -118,7 +94,6 @@ if __name__ == "__main__":
         for f in sorted(files):
             run_inference(f, cfg_file)
     else:
-        # 默认测试一个验证集样本
         sample_img = "data/dataset/val/爸爸/爸爸_000.jpg"
         if not os.path.exists(sample_img):
             sample_img = os.path.join(os.path.dirname(__file__), "data/dataset/val/爸爸/爸爸_000.jpg")

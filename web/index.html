@@ -3,50 +3,73 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MyHome C++17 智能门禁核验服务控制台</title>
+  <title>MyHome 智能门禁控制台 - LightPersonIDNet 纯净感知与多模态管理</title>
   <style>
     :root {
       --bg: #0b0f17;
-      --card: #151c28;
-      --card-border: #243044;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --accent: #3b82f6;
+      --card: #131b29;
+      --card-hover: #192437;
+      --card-border: #1e2d44;
+      --card-border-glow: #38bdf8;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-gradient: linear-gradient(135deg, #38bdf8 0%, #3b82f6 50%, #8b5cf6 100%);
       --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.15);
       --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, 0.15);
       --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.15);
+      --purple: #a855f7;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
       background: var(--bg);
       color: var(--text);
       padding: 24px;
       min-height: 100vh;
+      line-height: 1.5;
     }
     .container {
-      max-width: 1260px;
+      max-width: 1360px;
       margin: 0 auto;
     }
+
+    /* 顶部导航与品牌 */
     header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      background: var(--card);
+      background: rgba(19, 27, 41, 0.85);
+      backdrop-filter: blur(12px);
       border: 1px solid var(--card-border);
-      padding: 18px 24px;
-      border-radius: 14px;
-      margin-bottom: 20px;
+      padding: 16px 24px;
+      border-radius: 16px;
+      margin-bottom: 24px;
       flex-wrap: wrap;
-      gap: 12px;
+      gap: 16px;
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
     }
     .brand {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 16px;
+    }
+    .brand-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: var(--accent-gradient);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
     }
     .brand h1 {
-      font-size: 20px;
+      font-size: 19px;
       font-weight: 700;
       letter-spacing: 0.3px;
     }
@@ -55,7 +78,42 @@
       color: var(--muted);
       margin-top: 2px;
     }
-    .status-pills {
+
+    /* 顶部导航 Tabs */
+    .nav-tabs {
+      display: flex;
+      gap: 8px;
+      background: #0d1420;
+      padding: 4px;
+      border-radius: 12px;
+      border: 1px solid #1e293b;
+    }
+    .nav-tab {
+      padding: 8px 18px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+    .nav-tab:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .nav-tab.active {
+      background: var(--accent);
+      color: #0b0f17;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.5);
+    }
+
+    /* 顶部状态角标 */
+    .status-group {
       display: flex;
       align-items: center;
       gap: 12px;
@@ -64,462 +122,1237 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 7px 14px;
+      padding: 6px 14px;
       border-radius: 999px;
       font-size: 13px;
       font-weight: 600;
-      background: #1e293b;
-      border: 1px solid #334155;
+      background: #192334;
+      border: 1px solid #28374d;
     }
     .dot {
       width: 9px;
       height: 9px;
       border-radius: 50%;
-      background: var(--muted);
     }
-    .dot.idle { background: #38bdf8; box-shadow: 0 0 8px #38bdf8; }
-    .dot.active { background: var(--warning); box-shadow: 0 0 10px var(--warning); animation: pulse 1s infinite; }
-    .dot.online { background: var(--success); box-shadow: 0 0 8px var(--success); }
+    .dot.online { background: var(--success); box-shadow: 0 0 10px var(--success); }
+    .dot.pulse { background: var(--warning); box-shadow: 0 0 12px var(--warning); animation: pulse 1s infinite; }
+    .dot.relay-on { background: #38bdf8; box-shadow: 0 0 14px #38bdf8; animation: pulse 0.5s infinite; }
     @keyframes pulse {
       0%, 100% { transform: scale(1); opacity: 1; }
       50% { transform: scale(1.35); opacity: 0.7; }
     }
 
-    .grid {
-      display: grid;
-      grid-template-columns: 1.35fr 1fr;
-      gap: 20px;
+    /* Tab 内容容器 */
+    .tab-content {
+      display: none;
     }
-    @media (max-width: 960px) {
-      .grid { grid-template-columns: 1fr; }
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.25s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
+    /* 卡片体系 */
     .card {
       background: var(--card);
       border: 1px solid var(--card-border);
-      border-radius: 14px;
-      padding: 20px;
-      margin-bottom: 20px;
+      border-radius: 16px;
+      padding: 22px;
+      margin-bottom: 22px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .card:hover {
+      border-color: #293d5a;
     }
     .card-title {
-      font-size: 15px;
-      font-weight: 600;
-      margin-bottom: 14px;
+      font-size: 16px;
+      font-weight: 700;
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      color: #cbd5e1;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .card-title .title-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
-    /* 视频预览窗 */
-    .video-box {
+    /* 网格布局 */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap: 22px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 1024px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+
+    /* 上传测试区 (拖拽) */
+    .upload-zone {
+      border: 2px dashed #2d3e56;
+      border-radius: 14px;
+      padding: 32px 20px;
+      text-align: center;
+      cursor: pointer;
+      background: #0f1724;
+      transition: all 0.2s ease;
       position: relative;
-      width: 100%;
-      aspect-ratio: 16 / 10;
-      background: #070a0f;
-      border: 1px solid #26334d;
-      border-radius: 10px;
+    }
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(56, 189, 248, 0.06);
+    }
+    .upload-icon {
+      font-size: 42px;
+      margin-bottom: 10px;
+      display: block;
+    }
+    .upload-hint {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    /* 图像展示预览 */
+    .preview-box {
+      margin-top: 18px;
+      border-radius: 12px;
       overflow: hidden;
+      border: 1px solid #233148;
+      background: #080c14;
+      text-align: center;
+      position: relative;
+      min-height: 280px;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    .video-box img {
-      width: 100%;
-      height: 100%;
+    .preview-box img {
+      max-width: 100%;
+      max-height: 480px;
       object-fit: contain;
-      display: none;
+      display: block;
+      margin: 0 auto;
     }
-    .video-placeholder {
-      text-align: center;
+    .preview-placeholder {
       color: var(--muted);
-      padding: 24px;
-    }
-    .video-placeholder .icon {
-      font-size: 42px;
-      margin-bottom: 10px;
-    }
-    .window-bar-wrap {
-      margin-top: 12px;
-      background: #0d131f;
-      height: 8px;
-      border-radius: 99px;
-      overflow: hidden;
-      border: 1px solid #1e293b;
-    }
-    .window-bar {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #3b82f6, #10b981);
-      transition: width 0.2s linear;
+      font-size: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
     }
 
-    /* 控制按钮组 */
-    .btn-row {
-      display: grid;
-      grid-template-columns: 1.4fr 0.8fr 1fr;
-      gap: 12px;
-      margin-top: 16px;
+    /* 纯净感知数据统计指标 */
+    .metric-card {
+      background: #0f1623;
+      border: 1px solid #1f2c42;
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
     }
-    button {
-      cursor: pointer;
-      border: none;
-      border-radius: 10px;
-      padding: 13px 16px;
-      font-size: 14px;
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+      background: var(--accent);
+    }
+    .metric-card.green::before { background: var(--success); }
+    .metric-card.red::before { background: var(--danger); }
+    .metric-card.purple::before { background: var(--purple); }
+    .metric-label {
+      font-size: 12px;
+      color: var(--muted);
       font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .metric-val {
+      font-size: 28px;
+      font-weight: 800;
+      margin: 6px 0 2px 0;
       color: #fff;
+    }
+    .metric-sub {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* 识别明细列表 */
+    .person-item {
       display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      background: #0d1420;
+      border: 1px solid #1f2c40;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      transition: transform 0.15s ease;
+    }
+    .person-item:hover {
+      transform: translateX(4px);
+    }
+    .person-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .person-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #1e293b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    .person-name {
+      font-size: 14px;
+      font-weight: 700;
+    }
+    .person-status {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .badge-family {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .badge-stranger {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .badge-mode {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    /* 按钮组 */
+    .btn {
+      display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      transition: all 0.15s ease;
+      padding: 10px 18px;
+      border-radius: 10px;
+      border: none;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
     }
-    button:active { transform: translateY(1px); }
     .btn-primary {
-      background: linear-gradient(135deg, #2563eb, #1d4ed8);
-      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+      background: var(--accent);
+      color: #0b0f17;
     }
-    .btn-primary:hover { background: linear-gradient(135deg, #3b82f6, #2563eb); }
-    .btn-stop {
-      background: #334155;
-      color: #e2e8f0;
+    .btn-primary:hover {
+      background: #7dd3fc;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.5);
     }
-    .btn-stop:hover { background: #475569; }
-    .btn-relay {
-      background: linear-gradient(135deg, #059669, #047857);
+    .btn-success {
+      background: var(--success);
+      color: #0b0f17;
     }
-    .btn-relay:hover { background: linear-gradient(135deg, #10b981, #059669); }
-    .btn-sm {
-      padding: 6px 12px;
-      font-size: 12px;
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 8px;
+    .btn-success:hover {
+      background: #34d399;
+      box-shadow: 0 0 16px rgba(16, 185, 129, 0.5);
     }
-    .btn-sm:hover { background: #334155; }
+    .btn-warning {
+      background: var(--warning);
+      color: #0b0f17;
+    }
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+    }
+    .btn-outline {
+      background: #141c2a;
+      color: var(--text);
+      border: 1px solid #28374d;
+    }
+    .btn-outline:hover {
+      background: #1d283c;
+      border-color: #3b82f6;
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
 
-    /* ESP32-C6 光耦继电器状态卡片 */
-    .relay-box {
-      border: 1px solid #28364f;
-      background: #0e1522;
+    /* 硬件仿真控制面板 */
+    .sim-panel {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .sim-btn-card {
+      background: #0f1623;
+      border: 1px solid #223249;
       border-radius: 12px;
-      padding: 16px;
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: left;
+    }
+    .sim-btn-card:hover {
+      border-color: var(--accent);
+      background: #141f30;
+      transform: translateY(-2px);
+    }
+    .sim-btn-card .sim-icon {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    .sim-btn-card h4 {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .sim-btn-card p {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    /* 光耦继电器动画指示灯 */
+    .relay-banner {
+      margin-top: 16px;
+      padding: 14px 18px;
+      border-radius: 12px;
+      background: #0d1420;
+      border: 1px solid #202e42;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      transition: all 0.2s ease;
     }
-    .relay-box.active {
-      border-color: #10b981;
-      background: rgba(16, 185, 129, 0.14);
-      box-shadow: 0 0 24px rgba(16, 185, 129, 0.28);
+    .relay-indicator {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
     .relay-led {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #334155;
+      transition: all 0.3s ease;
+    }
+    .relay-led.active {
+      background: #10b981;
+      box-shadow: 0 0 18px #10b981;
+      animation: pulse 0.4s infinite;
+    }
+
+    /* 成员底库网格卡片 */
+    .members-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 18px;
+    }
+    .member-card {
+      background: #111827;
+      border: 1px solid #1f2d42;
+      border-radius: 14px;
+      padding: 18px;
+      transition: all 0.2s ease;
+    }
+    .member-card:hover {
+      border-color: #38bdf8;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+    .member-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .member-name-tag {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .member-photos-carousel {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 8px 0;
+      scrollbar-width: thin;
+    }
+    .photo-thumb-wrapper {
+      position: relative;
+      flex-shrink: 0;
+      width: 84px;
+      height: 84px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #28374d;
+    }
+    .photo-thumb-wrapper img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .photo-del-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
       width: 22px;
       height: 22px;
       border-radius: 50%;
-      background: #334155;
-      border: 3px solid #1e293b;
-      transition: all 0.15s ease;
+      background: rgba(239, 68, 68, 0.85);
+      color: #fff;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s ease;
     }
-    .relay-box.active .relay-led {
-      background: #10b981;
-      border-color: #a7f3d0;
-      box-shadow: 0 0 18px #10b981;
+    .photo-thumb-wrapper:hover .photo-del-btn {
+      opacity: 1;
     }
 
-    /* 实时指标网格 */
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      margin-top: 14px;
+    /* 弹窗 / 模态框 */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
     }
-    .metric-item {
-      background: #0e1522;
-      border: 1px solid #1e293b;
-      padding: 12px;
-      border-radius: 10px;
+    .modal-overlay.open {
+      display: flex;
     }
-    .metric-label { font-size: 12px; color: var(--muted); }
-    .metric-val { font-size: 18px; font-weight: 700; margin-top: 4px; }
+    .modal-card {
+      background: #141d2b;
+      border: 1px solid #273852;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 520px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--muted);
+    }
+    .form-control {
+      width: 100%;
+      padding: 10px 14px;
+      background: #0d1420;
+      border: 1px solid #233148;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+    }
+    .form-control:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
 
-    /* 表格与 JSON */
+    /* 历史记录表格 */
+    .table-container {
+      overflow-x: auto;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
       font-size: 13px;
     }
     th, td {
+      padding: 12px 14px;
       text-align: left;
-      padding: 10px 8px;
       border-bottom: 1px solid #1e293b;
     }
-    th { color: var(--muted); font-weight: 500; }
-    .tag-pass {
-      background: rgba(16, 185, 129, 0.15);
-      color: #34d399;
-      padding: 3px 8px;
-      border-radius: 6px;
+    th {
+      color: var(--muted);
       font-weight: 600;
-      font-size: 12px;
+      background: #0d1420;
     }
-    pre {
-      background: #090d14;
-      border: 1px solid #1e293b;
-      padding: 12px;
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* 全局 Toast 通知 */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      padding: 12px 22px;
       border-radius: 10px;
-      font-size: 12px;
-      color: #93c5fd;
-      overflow-x: auto;
-      max-height: 170px;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.25s ease;
+      z-index: 1000;
+    }
+    #toast.show {
+      transform: translateY(0);
+      opacity: 1;
     }
   </style>
 </head>
 <body>
   <div class="container">
+    <!-- 头部品牌与控制台状态 -->
     <header>
       <div class="brand">
-        <span style="font-size: 30px;">🛡️</span>
+        <div class="brand-logo">🚪</div>
         <div>
-          <h1>MyHome C++17 智能门禁算力核验控制台</h1>
-          <p>HA 传感器触发唤醒 · OpenCV C++ 极速推理 (YuNet + SFace + MediaPipe 21点骨骼) · ESP32-C6 光耦闭环</p>
+          <h1>MyHome 智能门禁控制中心</h1>
+          <p>LightPersonIDNet 超轻量纯净人体感知 + Home Assistant 多模态联动系统</p>
         </div>
       </div>
-      <div class="status-pills">
+
+      <!-- 选项卡切换按钮 -->
+      <div class="nav-tabs">
+        <button class="nav-tab active" id="tabBtnTest" onclick="switchTab('test')">
+          <span>🧪 页面在线测试</span>
+        </button>
+        <button class="nav-tab" id="tabBtnData" onclick="switchTab('data')">
+          <span>👥 家庭成员数据管理</span>
+        </button>
+        <button class="nav-tab" id="tabBtnSystem" onclick="switchTab('system')">
+          <span>⚡ 系统状态与监控</span>
+        </button>
+      </div>
+
+      <div class="status-group">
         <div class="pill">
-          <span id="connDot" class="dot online"></span>
-          <span id="connText">C++ 服务在线 (:8090)</span>
+          <span class="dot online" id="statusDot"></span>
+          <span id="serviceStatusText">服务正常</span>
         </div>
         <div class="pill">
-          <span id="stateDot" class="dot idle"></span>
-          <span id="stateText">IDLE_SLEEP (0% CPU 休眠)</span>
+          <span id="presencePillText">自家人在场: 无</span>
         </div>
       </div>
     </header>
 
-    <div class="grid">
-      <!-- 左侧：实时拉流核验画面与传感器模拟按钮 -->
-      <div>
+    <!-- ==================== TAB 1: 页面在线测试中心 ==================== -->
+    <div id="tabTest" class="tab-content active">
+      <div class="grid-2">
+        <!-- 左侧：图像上传与可视化标注 -->
         <div class="card">
           <div class="card-title">
-            <span>📷 C++ 实时按需拉流与视觉核验画面</span>
-            <span id="countdownText" style="font-size:13px; color:#38bdf8;">等待传感器唤醒...</span>
-          </div>
-
-          <div class="video-box">
-            <img id="liveImg" alt="Live Stream" />
-            <div id="videoPlaceholder" class="video-placeholder">
-              <div class="icon">💤</div>
-              <div style="font-size: 15px; font-weight: 600; color: #cbd5e1;">当前处于 0% CPU 深度休眠待机状态（摄像头已完全释放）</div>
-              <div style="font-size: 13px; margin-top: 6px;">点击下方【📡 模拟涂鸦 24G 传感器有人】按钮，立即唤醒 C++ 拉流识别【家人正脸 + 手势】</div>
+            <div class="title-left">
+              <span>📸</span>
+              <span>门前测试图像输入与 AI 感知标注</span>
             </div>
+            <button class="btn btn-outline" style="padding: 6px 12px;" onclick="loadSamplePhoto()">加载示例门前照片</button>
           </div>
 
-          <div class="window-bar-wrap">
-            <div id="windowBar" class="window-bar"></div>
+          <div class="upload-zone" id="uploadDropZone" onclick="document.getElementById('fileInput').click()">
+            <span class="upload-icon">📂</span>
+            <div style="font-weight: 700; font-size: 15px;">点击或拖拽照片至此进行模型纯净推理</div>
+            <div class="upload-hint">支持 JPG, PNG, WEBP 等格式，本地无需启动摄像头即可深度测试多姿态人体检测与身份识别</div>
+            <input type="file" id="fileInput" accept="image/*" style="display: none;" onchange="handleFileSelect(event)" />
           </div>
 
-          <div class="btn-row">
-            <button class="btn-primary" onclick="triggerSensorWakeup()">
-              📡 模拟涂鸦 24G 传感器有人 (唤醒拉流)
-            </button>
-            <button class="btn-stop" onclick="stopVerifyStream()">
-              ⏹️ 停止拉流
-            </button>
-            <button class="btn-relay" onclick="testRelayPulse()">
-              ⚡ 点动测试光耦继电器
-            </button>
+          <div class="preview-box" id="previewContainer">
+            <div class="preview-placeholder" id="previewPlaceholder">
+              <span style="font-size: 36px;">🖼️</span>
+              <span>上传照片后，此处将呈现高精度 Bounding Box 与置信度标注图</span>
+            </div>
+            <img id="annotatedImg" style="display: none;" alt="Annotated Output" />
+          </div>
+
+          <!-- 光耦继电器与硬件联动动画栏 -->
+          <div class="relay-banner">
+            <div class="relay-indicator">
+              <div class="relay-led" id="relayLed"></div>
+              <div>
+                <div style="font-weight: 700; font-size: 13px;" id="relayStatusTitle">ESP32-C6 光耦继电器：休眠 (OFF)</div>
+                <div style="font-size: 12px; color: var(--muted);" id="relayStatusDesc">检测通过时将触发 500ms 硬件闭环脉冲</div>
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="triggerRelayTest()">⚡ 点动模拟测试</button>
           </div>
         </div>
 
+        <!-- 右侧：纯净感知数据卡片与仿真触发 -->
+        <div>
+          <!-- 核心指标卡片 -->
+          <div class="card">
+            <div class="card-title">
+              <div class="title-left">
+                <span>📊</span>
+                <span>模型结构化纯净感知数据 (FrameSummary)</span>
+              </div>
+              <span class="badge badge-mode" id="latencyBadge">耗时: 0 ms</span>
+            </div>
+
+            <div class="grid-3" style="margin-bottom: 16px;">
+              <div class="metric-card">
+                <div class="metric-label">画面总人数</div>
+                <div class="metric-val" id="totalPersonsVal">0</div>
+                <div class="metric-sub">人体检测主体</div>
+              </div>
+              <div class="metric-card green">
+                <div class="metric-label">自家人数</div>
+                <div class="metric-val" id="familyCountVal" style="color: var(--success);">0</div>
+                <div class="metric-sub" id="familyMembersText">无识别名单</div>
+              </div>
+              <div class="metric-card red">
+                <div class="metric-label">陌生人数</div>
+                <div class="metric-val" id="strangerCountVal" style="color: var(--danger);">0</div>
+                <div class="metric-sub" id="strangerAlertText">安全未告警</div>
+              </div>
+            </div>
+
+            <!-- 主体明细卡片 -->
+            <div style="font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 8px;">各主体详细坐标与识别置信度：</div>
+            <div id="personsListContainer" style="max-height: 180px; overflow-y: auto;">
+              <div style="color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0;">暂无数据，请先上传照片测试</div>
+            </div>
+          </div>
+
+          <!-- 三种模式模拟触发面板 -->
+          <div class="card">
+            <div class="card-title">
+              <div class="title-left">
+                <span>🎛️</span>
+                <span>三种开门模式交互仿真测试</span>
+              </div>
+            </div>
+
+            <div class="sim-panel">
+              <!-- 方式 1 -->
+              <div class="sim-btn-card" onclick="simulateMode1()">
+                <div class="sim-icon">✌️</div>
+                <h4>方式 1: 人体 + 手势</h4>
+                <p>门前自家人匹配 + 比出 OK/胜利手势开门</p>
+              </div>
+
+              <!-- 方式 2 -->
+              <div class="sim-btn-card" onclick="simulateMode2()">
+                <div class="sim-icon">🔘</div>
+                <h4>方式 2: 人体 + 智能开关</h4>
+                <p>按门厅实体开关向 HA 发指令 + 自家人在场互锁判定</p>
+              </div>
+
+              <!-- 方式 3 -->
+              <div class="sim-btn-card" onclick="simulateMode3()">
+                <div class="sim-icon">🎙️</div>
+                <h4>方式 3: 声音核验</h4>
+                <p>声纹比对 + 口令内容识别 (已保留接口)</p>
+              </div>
+            </div>
+
+            <!-- 自家人在场窗口状态 -->
+            <div style="margin-top: 14px; padding: 12px; background: #0c121c; border-radius: 8px; border: 1px solid #1c2738; font-size: 13px;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span style="color: var(--muted);">门前自家人在场有效期 (15秒窗口)：</span>
+                <strong id="presenceWindowTimer">未激活 (0s)</strong>
+              </div>
+              <div style="font-size: 12px; color: var(--muted);">
+                💡 机制说明：当检测到自家人时自动开启 15 秒在场倒计时，在此期间门厅智能开关随时按下即可触发开门，免去并发时序竞争冲突！
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB 2: 家庭成员数据管理中心 ==================== -->
+    <div id="tabData" class="tab-content">
+      <div class="card">
+        <div class="card-title">
+          <div class="title-left">
+            <span>👥</span>
+            <span>已注册家庭成员底库 (上限 15 位)</span>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-outline" onclick="reloadDbFeatures()">🔄 一键热重载底库特征</button>
+            <button class="btn btn-primary" onclick="openUploadModal()">➕ 上传新成员照片</button>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 18px; padding: 12px 16px; background: rgba(56, 189, 248, 0.08); border-radius: 10px; border: 1px solid rgba(56, 189, 248, 0.2); font-size: 13px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <strong>底库存储路径:</strong> <code style="color: var(--accent);">./vision/db/faces/</code>
+            <span style="color: var(--muted); margin-left: 12px;">(支持一人多张全姿态抓拍，自动均值聚合 512 维原型向量)</span>
+          </div>
+          <span class="badge badge-family" id="quotaBadge">已注册 0 / 15 人</span>
+        </div>
+
+        <!-- 成员卡片网格列表 -->
+        <div class="members-grid" id="membersGrid">
+          <!-- 动态渲染 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB 3: 系统状态与监控 ==================== -->
+    <div id="tabSystem" class="tab-content">
+      <div class="grid-2">
         <div class="card">
           <div class="card-title">
-            <span>📜 开门与光耦吸合历史记录</span>
-            <span id="unlockCountBadge" style="font-size:12px; color:var(--muted);">累计开门: 0 次</span>
+            <div class="title-left">
+              <span>⚙️</span>
+              <span>系统核心参数与架构状态</span>
+            </div>
           </div>
-          <table>
-            <thead>
-              <tr>
-                <th>时间</th>
-                <th>识别家人</th>
-                <th>人脸相似度</th>
-                <th>确认手势</th>
-                <th>核验耗时</th>
-                <th>ESP32-C6 光耦动作</th>
-              </tr>
-            </thead>
-            <tbody id="historyBody">
-              <tr><td colspan="6" style="text-align:center; color:var(--muted); padding: 18px;">暂无开门记录，请点击【模拟涂鸦 24G 传感器有人】并对着镜头比出 ✌️ 或 👌 手势</td></tr>
+          <table style="margin-top: 8px;">
+            <tbody>
+              <tr><td style="color: var(--muted); width: 180px;">服务架构</td><td><strong>C++17 高性能 HTTP 核心 + PyTorch MPS 加速微服务</strong></td></tr>
+              <tr><td style="color: var(--muted);">识别模型</td><td><strong style="color: var(--accent);">LightPersonIDNet (MobileNetV3 + GeM Pooling, 512-dim)</strong></td></tr>
+              <tr><td style="color: var(--muted);">前置检测</td><td>轻量人体主体对齐检测器 (YuNet/HOG 混合加速)</td></tr>
+              <tr><td style="color: var(--muted);">支持认证模式</td><td>
+                <span class="badge badge-mode">人体 + 手势</span>
+                <span class="badge badge-mode">人体 + 智能开关</span>
+                <span class="badge badge-mode">声音 (预留)</span>
+              </td></tr>
+              <tr><td style="color: var(--muted);">Home Assistant Webhook</td><td><code>/api/webhook/ai_door_unlock_event</code></td></tr>
+              <tr><td style="color: var(--muted);">硬件输出</td><td>ESP32-C6 GPIO 脉冲 500ms (自恢复断开，防线圈过热)</td></tr>
+              <tr><td style="color: var(--muted);">累计成功开门次数</td><td><strong id="unlockCountVal" style="color: var(--success); font-size: 18px;">0</strong> 次</td></tr>
             </tbody>
           </table>
         </div>
-      </div>
-
-      <!-- 右侧：ESP32-C6 光耦继电器状态与实时遥测 -->
-      <div>
-        <div class="card">
-          <div class="card-title">
-            <span>🔌 ESP32-C6 + 光耦 (PC817) 继电器硬件状态</span>
-            <span style="font-size:12px; color:var(--muted);">点动脉冲: 500ms</span>
-          </div>
-          <div id="relayBox" class="relay-box">
-            <div>
-              <div id="relayTitle" style="font-size: 15px; font-weight: 700;">GPIO LOW · 光耦常开断开 (OFF)</div>
-              <div id="relayDesc" style="font-size: 12px; color: var(--muted); margin-top: 4px;">
-                等待 C++ 核验通过信号 -> 导通 500ms 触发门锁后自动断开
-              </div>
-            </div>
-            <div class="relay-led"></div>
-          </div>
-
-          <div class="metrics">
-            <div class="metric-item">
-              <div class="metric-label">当前画面锁定人物</div>
-              <div id="livePerson" class="metric-val" style="color:#34d399;">None</div>
-            </div>
-            <div class="metric-item">
-              <div class="metric-label">实时余弦相似度</div>
-              <div id="liveScore" class="metric-val">0.000</div>
-            </div>
-            <div class="metric-item">
-              <div class="metric-label">已入库家庭成员</div>
-              <div id="enrolledList" class="metric-val" style="font-size:15px; color:#60a5fa;">加载中...</div>
-            </div>
-          </div>
-
-          <div style="margin-top: 14px; display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size: 12px; color: var(--muted);">支持手势: <b>OK 👌 / VICTORY ✌️ / OPEN_PALM 🖐️ / THUMB_UP 👍</b></span>
-            <button class="btn-sm" onclick="reloadFaceDb()">🔄 热重载照片底库</button>
-          </div>
-        </div>
 
         <div class="card">
           <div class="card-title">
-            <span>📦 最近一次 `/api/verify` 返回 JSON 载荷</span>
-            <span style="font-size:12px; color:var(--muted);">供 Home Assistant 接收</span>
+            <div class="title-left">
+              <span>📋</span>
+              <span>近期开门与核验事件流日志</span>
+            </div>
+            <button class="btn btn-outline" style="padding: 4px 10px; font-size: 12px;" onclick="fetchStatus()">刷新</button>
           </div>
-          <pre id="lastJsonBox">{}</pre>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>时间</th>
+                  <th>人物</th>
+                  <th>模式</th>
+                  <th>动作/触发</th>
+                  <th>耗时</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody id="historyTableBody">
+                <tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">暂无历史记录</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script>
-    const API_BASE = window.location.port === "8090" ? "" : "http://127.0.0.1:8090";
-    let isVerifying = false;
-    let hasShownFinalSnapshot = false;
+  <!-- 上传照片/添加成员 模态弹窗 -->
+  <div class="modal-overlay" id="uploadModal">
+    <div class="modal-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+        <h3 style="font-size: 16px; font-weight: 700;">➕ 添加家庭成员照片</h3>
+        <button onclick="closeUploadModal()" style="background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer;">✕</button>
+      </div>
 
-    async function triggerSensorWakeup() {
-      hasShownFinalSnapshot = false;
-      try {
-        await fetch(`${API_BASE}/api/start_verify`, { method: "POST" });
-        pollStatus();
-      } catch (e) {
-        alert("无法连接 C++ 服务，请确认 ./cpp_service/build/myhome_verify_server 正在运行！");
+      <div class="form-group">
+        <label>家庭成员人名 (如: 爸爸, 妈妈, 孩子)</label>
+        <input type="text" id="modalMemberName" class="form-control" placeholder="请输入成员名称" />
+      </div>
+
+      <div class="form-group">
+        <label>选择照片文件 (建议包含全身/侧颜/正面自然姿态)</label>
+        <input type="file" id="modalPhotoInput" accept="image/*" class="form-control" onchange="previewModalPhoto(event)" />
+      </div>
+
+      <div style="text-align: center; margin-bottom: 18px; display: none;" id="modalPreviewBox">
+        <img id="modalPreviewImg" style="max-height: 140px; border-radius: 8px; border: 1px solid #28374d;" />
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn btn-outline" onclick="closeUploadModal()">取消</button>
+        <button class="btn btn-primary" onclick="submitUploadPhoto()">确认上传并热更新特征</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 全局 Toast 提示 -->
+  <div id="toast">操作成功</div>
+
+  <script>
+    let activeTab = 'test';
+    let currentTestBase64 = null;
+    let modalSelectedBase64 = null;
+    let presenceTimerInterval = null;
+    let presenceEndTime = 0;
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.innerText = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2800);
+    }
+
+    function switchTab(tab) {
+      activeTab = tab;
+      document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+
+      if (tab === 'test') {
+        document.getElementById('tabBtnTest').classList.add('active');
+        document.getElementById('tabTest').classList.add('active');
+      } else if (tab === 'data') {
+        document.getElementById('tabBtnData').classList.add('active');
+        document.getElementById('tabData').classList.add('active');
+        loadMembersData();
+      } else if (tab === 'system') {
+        document.getElementById('tabBtnSystem').classList.add('active');
+        document.getElementById('tabSystem').classList.add('active');
+        fetchStatus();
       }
     }
 
-    async function stopVerifyStream() {
-      await fetch(`${API_BASE}/api/stop_verify`, { method: "POST" });
-      pollStatus();
+    // 处理文件拖拽与上传
+    const dropZone = document.getElementById('uploadDropZone');
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        processTestFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    function handleFileSelect(e) {
+      if (e.target.files.length > 0) {
+        processTestFile(e.target.files[0]);
+      }
     }
 
-    async function testRelayPulse() {
-      await fetch(`${API_BASE}/api/test_relay`, { method: "POST" });
-      pollStatus();
+    function processTestFile(file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        currentTestBase64 = e.target.result;
+        runInference(currentTestBase64);
+      };
+      reader.readAsDataURL(file);
     }
 
-    async function reloadFaceDb() {
-      const res = await fetch(`${API_BASE}/api/reload`, { method: "POST" });
-      const data = await res.json();
-      alert(`已热重载家人照片底库！当前入库成员: ${(data.members || []).join(", ")}`);
-      pollStatus();
-    }
-
-    async function pollStatus() {
+    // 执行纯净推理
+    async function runInference(b64) {
+      showToast("正在通过 LightPersonIDNet 进行纯净推理...");
       try {
-        const res = await fetch(`${API_BASE}/api/status`);
-        const data = await res.json();
+        const resp = await fetch('/api/test_image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: b64 })
+        });
+        const res = await resp.json();
+        renderInferenceResult(res);
+      } catch (err) {
+        showToast("推理请求失败: " + err);
+      }
+    }
 
-        document.getElementById("connDot").className = "dot online";
-        document.getElementById("connText").innerText = "C++ 服务在线 (:8090)";
+    function renderInferenceResult(res) {
+      document.getElementById('totalPersonsVal').innerText = res.total_persons || 0;
+      document.getElementById('familyCountVal').innerText = res.family_count || 0;
+      document.getElementById('strangerCountVal').innerText = res.stranger_count || 0;
+      document.getElementById('latencyBadge').innerText = '耗时: ' + (res.latency_ms || 0) + ' ms';
 
-        isVerifying = (data.state === "VERIFYING_STREAM");
-        const stateDot = document.getElementById("stateDot");
-        const stateText = document.getElementById("stateText");
-        if (isVerifying) {
-          stateDot.className = "dot active";
-          stateText.innerText = `VERIFYING_STREAM (拉流核验中 ${data.remaining_sec.toFixed(1)}s)`;
-          document.getElementById("countdownText").innerText = `剩余核验窗口: ${data.remaining_sec.toFixed(1)} 秒`;
-          const pct = Math.min(100, (data.remaining_sec / (data.window_sec || 15)) * 100);
-          document.getElementById("windowBar").style.width = `${pct}%`;
+      const familyNames = res.family_members && res.family_members.length > 0
+        ? res.family_members.join(', ')
+        : '无识别名单';
+      document.getElementById('familyMembersText').innerText = familyNames;
+
+      document.getElementById('strangerAlertText').innerText = (res.stranger_count > 0) ? '⚠️ 存在陌生人' : '安全未告警';
+      document.getElementById('strangerAlertText').style.color = (res.stranger_count > 0) ? 'var(--danger)' : 'var(--muted)';
+
+      // 渲染标注图
+      if (res.annotated_image) {
+        const img = document.getElementById('annotatedImg');
+        img.src = res.annotated_image;
+        img.style.display = 'block';
+        document.getElementById('previewPlaceholder').style.display = 'none';
+      }
+
+      // 渲染主体明细列表
+      const listContainer = document.getElementById('personsListContainer');
+      listContainer.innerHTML = '';
+      if (!res.persons || res.persons.length === 0) {
+        listContainer.innerHTML = '<div style="color: var(--muted); font-size: 13px; text-align: center; padding: 15px 0;">画面未捕获到人体主体</div>';
+      } else {
+        res.persons.forEach((p, idx) => {
+          const item = document.createElement('div');
+          item.className = 'person-item';
+          const badgeClass = p.is_family ? 'badge-family' : 'badge-stranger';
+          const statusText = p.status || '主体';
+          item.innerHTML = `
+            <div class="person-info">
+              <div class="person-avatar">${p.is_family ? '🟢' : '🔴'}</div>
+              <div>
+                <div class="person-name">#${idx + 1} ${p.name} <span class="badge ${badgeClass}" style="margin-left: 6px;">${p.is_family ? '自家人' : '陌生人'}</span></div>
+                <div class="person-status">姿态: ${statusText} | 耗时: ${p.latency_ms || 0}ms</div>
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <strong style="font-size: 15px; color: ${p.is_family ? 'var(--success)' : 'var(--danger)'};">${(p.score * 100).toFixed(1)}%</strong>
+              <div style="font-size: 11px; color: var(--muted);">相似度得分</div>
+            </div>
+          `;
+          listContainer.appendChild(item);
+        });
+      }
+
+      // 如果有自家人，刷新自家人在场倒计时 (15s)
+      if (res.family_count > 0) {
+        startPresenceCountdown(15, familyNames);
+      }
+    }
+
+    function startPresenceCountdown(sec, name) {
+      presenceEndTime = Date.now() + sec * 1000;
+      document.getElementById('presencePillText').innerText = '自家人在场: ' + name;
+      document.getElementById('presencePillText').style.color = 'var(--success)';
+
+      if (presenceTimerInterval) clearInterval(presenceTimerInterval);
+      presenceTimerInterval = setInterval(() => {
+        const rem = Math.max(0, Math.round((presenceEndTime - Date.now()) / 1000));
+        if (rem > 0) {
+          document.getElementById('presenceWindowTimer').innerText = `有效 (${rem}s) [${name}]`;
+          document.getElementById('presenceWindowTimer').style.color = 'var(--success)';
         } else {
-          stateDot.className = "dot idle";
-          stateText.innerText = "IDLE_SLEEP (0% CPU 休眠待机)";
-          document.getElementById("countdownText").innerText = "摄像头已释放 · 等待传感器信号";
-          document.getElementById("windowBar").style.width = "0%";
+          document.getElementById('presenceWindowTimer').innerText = '未激活 (0s)';
+          document.getElementById('presenceWindowTimer').style.color = 'var(--muted)';
+          document.getElementById('presencePillText').innerText = '自家人在场: 无';
+          document.getElementById('presencePillText').style.color = 'var(--text)';
+          clearInterval(presenceTimerInterval);
         }
+      }, 500);
+    }
 
-        // 更新画面显示
-        const liveImg = document.getElementById("liveImg");
-        const placeholder = document.getElementById("videoPlaceholder");
-        if (isVerifying) {
-          liveImg.src = `${API_BASE}/api/frame.jpg?t=${Date.now()}`;
-          liveImg.style.display = "block";
-          placeholder.style.display = "none";
-          hasShownFinalSnapshot = false;
-        } else if (data.last_result && data.last_result.passed && !hasShownFinalSnapshot) {
-          // 刚开门成功时，拉取并定格展示带绿色 UNLOCKED 横幅的最终抓拍帧
-          liveImg.src = `${API_BASE}/api/frame.jpg?t=${Date.now()}`;
-          liveImg.style.display = "block";
-          placeholder.style.display = "none";
-          hasShownFinalSnapshot = true;
-        }
+    // 触发硬件光耦脉冲模拟
+    async function triggerRelayTest() {
+      showToast("正在发送 ESP32-C6 500ms 光耦点动脉冲...");
+      animateRelayLed();
+      try {
+        const resp = await fetch('/api/test_relay', { method: 'POST' });
+        const res = await resp.json();
+        showToast("已成功触发继电器点动模拟！");
+      } catch (err) {
+        showToast("继电器测试失败: " + err);
+      }
+    }
 
-        // 更新 ESP32-C6 光耦继电器状态
-        const relayBox = document.getElementById("relayBox");
-        if (data.relay_active) {
-          relayBox.className = "relay-box active";
-          document.getElementById("relayTitle").innerText = "⚡ GPIO HIGH · 光耦导通吸合中 (500ms ON!)";
-          document.getElementById("relayDesc").innerText = "正在向门锁输出低阻导通脉冲 + 已同步上报 Home Assistant";
+    function animateRelayLed() {
+      const led = document.getElementById('relayLed');
+      const title = document.getElementById('relayStatusTitle');
+      const desc = document.getElementById('relayStatusDesc');
+      led.classList.add('active');
+      title.innerText = 'ESP32-C6 光耦继电器：已导通 (ON 500ms)';
+      title.style.color = 'var(--success)';
+      desc.innerText = 'GPIO 瞬间拉高，光耦导通驱动门锁开门信号';
+
+      setTimeout(() => {
+        led.classList.remove('active');
+        title.innerText = 'ESP32-C6 光耦继电器：已自动断开 (OFF)';
+        title.style.color = 'var(--text)';
+        desc.innerText = '已恢复断开常开状态，防线圈过热';
+      }, 500);
+    }
+
+    // 仿真模式 1: 人体 + 手势
+    async function simulateMode1() {
+      showToast("仿真方式 1: 人体 + 手势 (向服务请求核验)...");
+      try {
+        const resp = await fetch('/api/verify', { method: 'POST' });
+        const res = await resp.json();
+        if (res.passed) {
+          animateRelayLed();
+          showToast(`✅ 核验通过！[${res.person} + ${res.gesture || 'OK'}] 已触发开门`);
         } else {
-          relayBox.className = "relay-box";
-          document.getElementById("relayTitle").innerText = "GPIO LOW · 光耦常开断开 (OFF)";
-          document.getElementById("relayDesc").innerText = "等待 C++ 核验通过信号 -> 导通 500ms 触发门锁后自动断开";
+          showToast("未检测到有效自家人与手势");
         }
+        fetchStatus();
+      } catch (err) {
+        showToast("请求异常: " + err);
+      }
+    }
 
-        // 更新指标
-        document.getElementById("livePerson").innerText = data.live_person || "None";
-        document.getElementById("liveScore").innerText = (data.live_face_score || 0).toFixed(3);
-        document.getElementById("enrolledList").innerText = (data.enrolled_members || []).join(", ") || "无";
-        document.getElementById("unlockCountBadge").innerText = `累计开门: ${data.unlock_count || 0} 次`;
-        document.getElementById("lastJsonBox").innerText = JSON.stringify(data.last_result || {}, null, 2);
+    // 仿真模式 2: 人体 + 智能开关
+    async function simulateMode2() {
+      showToast("仿真方式 2: 按下门厅智能开关，发送指令至 HA...");
+      try {
+        const resp = await fetch('/api/switch_trigger', { method: 'POST' });
+        const res = await resp.json();
+        if (res.passed) {
+          animateRelayLed();
+          showToast(`🎉 成功触发！自家人在场窗口有效，直接开门 (${res.person})`);
+        } else {
+          showToast(`⏳ ${res.message}`);
+        }
+        fetchStatus();
+      } catch (err) {
+        showToast("开关触发异常: " + err);
+      }
+    }
 
-        // 更新历史表格
-        const history = data.history || [];
-        const tbody = document.getElementById("historyBody");
-        if (history.length > 0) {
-          tbody.innerHTML = history.map(item => `
-            <tr>
-              <td>${item.time}</td>
-              <td style="font-weight:700; color:#60a5fa;">${item.person}</td>
-              <td>${item.face_score}</td>
-              <td><span class="tag-pass">🖐️ ${item.gesture}</span></td>
-              <td>${item.elapsed_ms} ms</td>
-              <td style="color:#34d399;">⚡ 导通 ${item.relay_pulse_ms}ms -> 自动断开</td>
-            </tr>
-          `).join("");
+    // 仿真模式 3: 声音核验 (预留)
+    async function simulateMode3() {
+      try {
+        const resp = await fetch('/api/verify_voice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audio: "dummy", text: "芝麻开门" })
+        });
+        const res = await resp.json();
+        showToast("ℹ️ 提示: " + res.message);
+      } catch (err) {
+        showToast("声音请求异常: " + err);
+      }
+    }
+
+    // 加载示例门前照片
+    async function loadSamplePhoto() {
+      showToast("加载示例门前照片中...");
+      try {
+        // 请求爸爸底库照片做测试
+        const resp = await fetch('/api/photo?file=爸爸_1.jpg');
+        if (resp.ok) {
+          const blob = await resp.blob();
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            currentTestBase64 = e.target.result;
+            runInference(currentTestBase64);
+          };
+          reader.readAsDataURL(blob);
+        } else {
+          showToast("未能加载到示例照片");
         }
       } catch (err) {
-        document.getElementById("connDot").className = "dot";
-        document.getElementById("connText").innerText = "C++ 服务未启动";
+        showToast("加载示例照片失败: " + err);
       }
     }
 
-    setInterval(pollStatus, 180);
-    pollStatus();
+    // ==================== 数据管理中心逻辑 ====================
+    async function loadMembersData() {
+      try {
+        const resp = await fetch('/api/members');
+        const data = await resp.json();
+        renderMembersGrid(data);
+      } catch (err) {
+        showToast("加载成员底库失败: " + err);
+      }
+    }
+
+    function renderMembersGrid(data) {
+      const grid = document.getElementById('membersGrid');
+      grid.innerHTML = '';
+      const total = data.total_members || 0;
+      document.getElementById('quotaBadge').innerText = `已注册 ${total} / 15 人`;
+
+      if (!data.members || data.members.length === 0) {
+        grid.innerHTML = '<div style="color: var(--muted); grid-column: 1/-1; text-align: center; padding: 40px;">暂无成员数据，请点击上方「上传新成员照片」添加</div>';
+        return;
+      }
+
+      data.members.forEach(m => {
+        const card = document.createElement('div');
+        card.className = 'member-card';
+
+        let photosHtml = '';
+        if (m.photos && m.photos.length > 0) {
+          m.photos.forEach(fname => {
+            photosHtml += `
+              <div class="photo-thumb-wrapper">
+                <img src="/api/photo?file=${encodeURIComponent(fname)}" loading="lazy" alt="${fname}" />
+                <button class="photo-del-btn" title="删除照片" onclick="deleteMemberPhoto('${fname}')">✕</button>
+              </div>
+            `;
+          });
+        } else {
+          photosHtml = '<div style="color: var(--muted); font-size: 12px; padding: 10px 0;">暂无照片</div>';
+        }
+
+        card.innerHTML = `
+          <div class="member-card-header">
+            <div class="member-name-tag">
+              <span>👤</span>
+              <span>${m.name}</span>
+            </div>
+            <span class="badge ${m.has_embedding ? 'badge-family' : 'badge-stranger'}">${m.photo_count} 张照片</span>
+          </div>
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;">照片样本预览 (悬停可删除)：</div>
+          <div class="member-photos-carousel">
+            ${photosHtml}
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    async function deleteMemberPhoto(filename) {
+      if (!confirm(`确定要删除照片 ${filename} 吗？删除后将自动重建特征底库。`)) return;
+      showToast("正在删除并热更新底库...");
+      try {
+        const resp = await fetch('/api/delete_photo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file: filename })
+        });
+        const res = await resp.json();
+        showToast("照片已删除，底库已更新！");
+        loadMembersData();
+      } catch (err) {
+        showToast("删除失败: " + err);
+      }
+    }
+
+    async function reloadDbFeatures() {
+      showToast("正在重新扫描并提取所有成员原型特征向量...");
+      try {
+        const resp = await fetch('/api/reload', { method: 'POST' });
+        const res = await resp.json();
+        showToast(`✅ 热重载完成！已载入 ${res.enrolled_count || 0} 位成员特征`);
+        loadMembersData();
+      } catch (err) {
+        showToast("热重载失败: " + err);
+      }
+    }
+
+    function openUploadModal() {
+      document.getElementById('modalMemberName').value = '';
+      document.getElementById('modalPhotoInput').value = '';
+      document.getElementById('modalPreviewBox').style.display = 'none';
+      modalSelectedBase64 = null;
+      document.getElementById('uploadModal').classList.add('open');
+    }
+
+    function closeUploadModal() {
+      document.getElementById('uploadModal').classList.remove('open');
+    }
+
+    function previewModalPhoto(e) {
+      if (e.target.files.length > 0) {
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          modalSelectedBase64 = evt.target.result;
+          document.getElementById('modalPreviewImg').src = modalSelectedBase64;
+          document.getElementById('modalPreviewBox').style.display = 'block';
+        };
+        reader.readAsDataURL(e.target.files[0]);
+      }
+    }
+
+    async function submitUploadPhoto() {
+      const name = document.getElementById('modalMemberName').value.trim();
+      if (!name) {
+        alert("请输入成员姓名！");
+        return;
+      }
+      if (!modalSelectedBase64) {
+        alert("请选择照片文件！");
+        return;
+      }
+
+      showToast("正在上传照片并重建 512 维特征原型...");
+      try {
+        const resp = await fetch('/api/upload_photo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name, image: modalSelectedBase64 })
+        });
+        const res = await resp.json();
+        if (res.status === 'ok') {
+          showToast(`✅ 成功为【${name}】添加照片！底库已更新`);
+          closeUploadModal();
+          loadMembersData();
+        } else {
+          showToast("上传失败: " + (res.error || '未知错误'));
+        }
+      } catch (err) {
+        showToast("上传异常: " + err);
+      }
+    }
+
+    // ==================== 系统状态与历史日志 ====================
+    async function fetchStatus() {
+      try {
+        const resp = await fetch('/api/status');
+        const st = await resp.json();
+
+        document.getElementById('unlockCountVal').innerText = st.unlock_count || 0;
+        document.getElementById('serviceStatusText').innerText = st.state === 'VERIFYING_STREAM' ? '视频拉流中' : '0% CPU 待机';
+
+        // 渲染历史记录
+        const tbody = document.getElementById('historyTableBody');
+        tbody.innerHTML = '';
+        if (!st.history || st.history.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">暂无历史记录</td></tr>';
+        } else {
+          st.history.forEach(h => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${h.time}</td>
+              <td><strong>${h.person}</strong></td>
+              <td><span class="badge badge-mode">${h.auth_mode || '多模态'}</span></td>
+              <td>${h.action || '开门'}</td>
+              <td>${h.elapsed_ms}ms</td>
+              <td><span class="badge badge-family">开门成功 (500ms脉冲)</span></td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+      } catch (err) {}
+    }
+
+    // 页面定时器刷新
+    setInterval(fetchStatus, 3000);
+    fetchStatus();
   </script>
 </body>
 </html>

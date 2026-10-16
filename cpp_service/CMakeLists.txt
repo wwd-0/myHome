@@ -20,7 +20,7 @@ link_directories(/opt/homebrew/lib)
 
 add_executable(myhome_verify_server
     src/main.cpp
-    src/face_engine.cpp
+    src/person_engine.cpp
     src/gesture_engine.cpp
 )
 

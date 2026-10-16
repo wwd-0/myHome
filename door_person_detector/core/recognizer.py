@@ -15,11 +15,11 @@ except (ImportError, ValueError):
 
 @dataclass
 class RecognitionResult:
-    """人员身份识别结果"""
+    """单人身份识别结果"""
     person_name: str                  # 识别身份 ("爸爸", "妈妈" 等，或 "陌生人")
     similarity_score: float           # 余弦相似度置信度 (0.0 ~ 1.0)
-    is_stranger: bool                 # 是否被归属为陌生人
-    can_unlock: bool                  # 是否达到安全开门条件 (置信度超标 + 距离近 + 非陌生人)
+    is_stranger: bool                 # 是否为陌生人
+    is_family: bool                   # 是否为自家人
     bbox: Tuple[int, int, int, int]   # 图像边界框 (x, y, w, h)
     has_face: bool                    # 画面中是否显式捕获到人脸
     is_profile: bool                  # 是否为侧脸或局部遮挡
@@ -55,20 +55,18 @@ class FrameSummary:
 
 class PersonRecognizer:
     """
-    生产级入户人员全能身份识别引擎
+    生产级入户人员全能身份识别引擎 (纯净感知模块)
     - 采用 LightPersonIDNet (MobileNetV3 + GeM 池化) 全局特征提取
     - 兼容正脸、侧脸、无面部低头、背影等全姿态人体主体
-    - 支持自家人特征底库 (Prototypical Gallery) 零样本/多样本快速注册与训练微调
+    - 支持自家人特征底库 (Prototypical Gallery) 快速比对
     - 严格的陌生人拒识机制: 余弦相似度低于阈值一律判定为 [陌生人]
-    - 上限 15 位家庭成员，防越权与误开门
+    - 上限 15 位家庭成员
     """
     def __init__(self,
                  weights_path: str = "",
                  gallery_path: str = "",
                  model_type: str = "LightPersonIDNet",
                  similarity_threshold: float = 0.75,
-                 unlock_threshold: float = 0.80,
-                 min_face_width_px: int = 80,
                  target_size: Tuple[int, int] = (256, 128),
                  device: str = "mps"):
         # 自动探测硬件加速
@@ -81,14 +79,11 @@ class PersonRecognizer:
         self.model_type = model_type
         self.target_size = target_size
         self.similarity_threshold = similarity_threshold
-        self.unlock_threshold = unlock_threshold
-        self.min_face_width_px = min_face_width_px
 
         # 1. 实例化超轻量识别网络
         if model_type == "MobileFaceNet":
             self.model = MobileFaceNet(embedding_dim=512).to(self.device)
         else:
-            # 默认 LightPersonIDNet (支持全姿态、侧脸、无脸人体识别)
             self.model = LightPersonIDNet(embedding_dim=512, pretrained=True).to(self.device)
         self.model.eval()
 
@@ -147,11 +142,8 @@ class PersonRecognizer:
         """
         输入 (256, 128) BGR 人体切片，返回 512 维单位化特征向量 (||f||_2 = 1.0)
         """
-        # BGR -> RGB
         rgb = patch_bgr[:, :, ::-1].astype(np.float32)
-        # 归一化到 [-1, 1]
         normalized = (rgb - 127.5) / 128.0
-        # HWC -> CHW -> BCHW
         tensor = torch.from_numpy(normalized.transpose(2, 0, 1)).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
@@ -159,35 +151,16 @@ class PersonRecognizer:
             feat_np = feat.cpu().numpy()[0]
         return feat_np
 
-    def enroll_member(self, member_name: str, patch_list: List[np.ndarray]):
-        """
-        快速注册或增量更新单人特征底库 (支持正面照、侧脸照、背身照多姿态均值融合)
-        """
-        if not patch_list:
-            return
-        feats = []
-        for p in patch_list:
-            f = self.extract_embedding(p)
-            feats.append(f)
-
-        mean_feat = np.mean(feats, axis=0)
-        norm = np.linalg.norm(mean_feat)
-        if norm > 1e-6:
-            mean_feat = mean_feat / norm
-        self.family_gallery[member_name] = mean_feat
-        print(f"[Recognizer] 已登记成员【{member_name}】，使用了 {len(patch_list)} 张多角度切片融合")
-
     def identify(self,
                  patch_bgr: np.ndarray,
                  bbox: Tuple[int, int, int, int],
                  has_face: bool = False,
                  is_profile: bool = False) -> RecognitionResult:
         """
-        核心识别核验入口：识别当前人体主体是谁 (15位家内成员 或 陌生人)
+        单人识别：识别单个人体切片是谁
         """
         t0 = time.time()
         embedding = self.extract_embedding(patch_bgr)
-        bw = bbox[2]
 
         if not self.family_gallery:
             latency = (time.time() - t0) * 1000.0
@@ -195,7 +168,7 @@ class PersonRecognizer:
                 person_name="陌生人",
                 similarity_score=0.0,
                 is_stranger=True,
-                can_unlock=False,
+                is_family=False,
                 bbox=bbox,
                 has_face=has_face,
                 is_profile=is_profile,
@@ -205,7 +178,6 @@ class PersonRecognizer:
         best_name = "陌生人"
         best_score = -1.0
 
-        # 与底库中所有已登记家庭成员做余弦相似度计算 (A·B)
         for name, proto_vec in self.family_gallery.items():
             cos_sim = float(np.dot(embedding, proto_vec))
             if cos_sim > best_score:
@@ -214,26 +186,20 @@ class PersonRecognizer:
 
         latency = (time.time() - t0) * 1000.0
 
-        # 判断是否高于家庭成员判定阈值
         if best_score >= self.similarity_threshold:
             is_stranger = False
+            is_family = True
             identified_name = best_name
         else:
             is_stranger = True
+            is_family = False
             identified_name = "陌生人"
-
-        # 判断是否满足开门专属安全条件 (置信度更高 + 确认为自家人)
-        can_unlock = (
-            (not is_stranger)
-            and (best_score >= self.unlock_threshold)
-            and (bw >= self.min_face_width_px)
-        )
 
         return RecognitionResult(
             person_name=identified_name,
             similarity_score=max(0.0, best_score),
             is_stranger=is_stranger,
-            can_unlock=can_unlock,
+            is_family=is_family,
             bbox=bbox,
             has_face=has_face,
             is_profile=is_profile,
@@ -244,13 +210,12 @@ class PersonRecognizer:
         """
         批量并行识别画面中同时出现的多个主体 (极速批处理，4人并发耗时几乎等同于单人)
         输入: List[DetectedPerson]
-        输出: List[RecognitionResult] 对应画面中每个人的身份、置信度与开门资质
+        输出: List[RecognitionResult] 对应画面中每个人的身份与置信度
         """
         if not persons:
             return []
 
         t0 = time.time()
-        # 1. 批量预处理拼装成 [B, 3, 256, 128] Tensor
         batch_tensors = []
         for p in persons:
             rgb = p.aligned_patch[:, :, ::-1].astype(np.float32)
@@ -269,17 +234,15 @@ class PersonRecognizer:
         gallery_names = list(self.family_gallery.keys())
         gallery_matrix = np.array([self.family_gallery[n] for n in gallery_names]) if gallery_names else None
 
-        # 2. 向量化矩阵内积快速比对
         for idx, p in enumerate(persons):
             embedding = embeddings[idx]
-            bw = p.bbox[2]
 
             if gallery_matrix is None or len(gallery_matrix) == 0:
                 results.append(RecognitionResult(
                     person_name="陌生人",
                     similarity_score=0.0,
                     is_stranger=True,
-                    can_unlock=False,
+                    is_family=False,
                     bbox=p.bbox,
                     has_face=p.has_face,
                     is_profile=p.is_profile_or_occluded,
@@ -294,22 +257,18 @@ class PersonRecognizer:
 
             if best_score >= self.similarity_threshold:
                 is_stranger = False
+                is_family = True
                 identified_name = best_name
             else:
                 is_stranger = True
+                is_family = False
                 identified_name = "陌生人"
-
-            can_unlock = (
-                (not is_stranger)
-                and (best_score >= self.unlock_threshold)
-                and (bw >= self.min_face_width_px)
-            )
 
             results.append(RecognitionResult(
                 person_name=identified_name,
                 similarity_score=max(0.0, best_score),
                 is_stranger=is_stranger,
-                can_unlock=can_unlock,
+                is_family=is_family,
                 bbox=p.bbox,
                 has_face=p.has_face,
                 is_profile=p.is_profile_or_occluded,
@@ -320,8 +279,8 @@ class PersonRecognizer:
 
     def summarize_frame(self, results: List[RecognitionResult]) -> FrameSummary:
         """
-        根据当前帧的所有人员识别结果，生成高维结构化汇总数据
-        包含: 画面总人数、自家人数、陌生人数、人员名单、每个人具体坐标及置信度
+        根据当前帧的所有人员识别结果，生成纯净结构化感知数据
+        包含: 画面总人数、自家人数、陌生人数、自家人具体是谁、每个人具体坐标及置信度
         """
         family_members = []
         family_count = 0
@@ -338,12 +297,12 @@ class PersonRecognizer:
 
             status_tag = "正面" if (r.has_face and not r.is_profile) else ("侧脸" if r.is_profile else "无脸主体")
             persons_detail.append({
-                "name": r.person_name,
+                "name": str(r.person_name),
                 "score": round(float(r.similarity_score), 4),
-                "is_stranger": r.is_stranger,
-                "can_unlock": r.can_unlock,
+                "is_stranger": bool(r.is_stranger),
+                "is_family": bool(r.is_family),
                 "status": status_tag,
-                "bbox": {"x": r.bbox[0], "y": r.bbox[1], "w": r.bbox[2], "h": r.bbox[3]},
+                "bbox": {"x": int(r.bbox[0]), "y": int(r.bbox[1]), "w": int(r.bbox[2]), "h": int(r.bbox[3])},
                 "latency_ms": round(float(r.latency_ms), 2)
             })
 
