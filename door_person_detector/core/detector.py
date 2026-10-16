@@ -66,23 +66,26 @@ class LightweightDetector:
         self.yunet_detector = None
         self.input_size = (640, 640)
 
-        # 1. 尝试加载 YuNet 快速人脸/头肩锚定引擎 (仅 232KB)
-        resolved_path = self._resolve_model_path(model_path)
-        if resolved_path and os.path.exists(resolved_path):
-            try:
-                self.yunet_detector = cv2.FaceDetectorYN.create(
-                    model=resolved_path,
-                    config="",
-                    input_size=self.input_size,
-                    score_threshold=self.score_threshold,
-                    nms_threshold=0.3,
-                    top_k=5000
-                )
-                print(f"[Detector] 成功加载超轻量前置检测器: {resolved_path}")
-            except Exception as e:
-                print(f"[Detector] YuNet 加载警告: {e}")
+        # 1. 尝试加载 YOLOv8-Nano (支持多人合影、偏位、非固定机位)
+        self.yolo_model = None
+        try:
+            from ultralytics import YOLO
+            candidates = [
+                "yolov8n.pt",
+                os.path.join(os.path.dirname(__file__), "../../yolov8n.pt"),
+                os.path.join(os.path.dirname(__file__), "../weights/yolov8n.pt"),
+            ]
+            yolo_path = "yolov8n.pt"
+            for c in candidates:
+                if os.path.exists(c):
+                    yolo_path = os.path.abspath(c)
+                    break
+            self.yolo_model = YOLO(yolo_path)
+            print(f"[Detector] 成功加载 YOLOv8-Nano 多目标人体检测器: {yolo_path}")
+        except Exception as e:
+            print(f"[Detector] YOLOv8 加载提示: {e}")
 
-        # 2. 初始化 OpenCV 原生 HOG 人体全身/半身检测器 (用于人脸完全看不见时的无脸人形保底)
+        # 2. 初始化 OpenCV 原生 HOG 人体全身/半身检测器 (用于无 GPU / 离线保底)
         self.hog_detector = cv2.HOGDescriptor()
         self.hog_detector.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
 
@@ -106,7 +109,7 @@ class LightweightDetector:
             return parent_p
         return path
 
-    def letterbox_person(self, img_bgr: np.ndarray, target_hw: Tuple[int, int] = (256, 128)) -> np.ndarray:
+    def letterbox_person(self, img_bgr: np.ndarray, target_hw: Tuple[int, int] = (512, 256)) -> np.ndarray:
         """
         自适应等比缩放 + 边缘填充 (Letterbox)，确保人体主体不被拉伸变形
         输入: 任意比例图像 (H, W, 3)
@@ -142,92 +145,44 @@ class LightweightDetector:
 
     def detect(self, frame_bgr: np.ndarray) -> List[DetectedPerson]:
         """
-        从完整监控/摄像头画面中检测人物主体：
-        - 优先检测人脸/侧脸，并依据人体工学以头肩为锚点自适应外延躯干
-        - 若完全未检测到人脸（如低头找钥匙、背身），无缝切换至人体 HOG / 轮廓检测
-        - 若画面整体就是主体，返回整体归一化切片
+        从监控/抓拍画面中检测人物主体 (支持单人、多人合影、偏位等全场景)：
+        1. 优先使用 YOLOv8-Nano 检测画面中所有人员 (Class 0: person) 并框出每个独立主体
+        2. 对每个人体框按黄金长宽比平滑抽取规范化切片
+        3. 若未检测到明显主体，自动以全画幅自适应保底
         """
         h, w = frame_bgr.shape[:2]
         results: List[DetectedPerson] = []
 
-        # 策略 1: 基于面部/侧脸锚点外延人体主体
-        if self.yunet_detector is not None:
-            if self.input_size != (w, h):
-                self.input_size = (w, h)
-                self.yunet_detector.setInputSize((w, h))
-
-            status, faces = self.yunet_detector.detect(frame_bgr)
-            if status == 0 and faces is not None and len(faces) > 0:
-                for face in faces:
-                    conf = float(face[14])
-                    if conf < self.score_threshold:
-                        continue
-
-                    fx, fy, fw, fh = int(face[0]), int(face[1]), int(face[2]), int(face[3])
-                    landmarks = face[4:14].reshape((5, 2)).astype(np.float32)
-
-                    # 计算眼睛与鼻尖的相对偏转，判断是否为侧脸 (Profile Face)
-                    left_eye, right_eye, nose = landmarks[0], landmarks[1], landmarks[2]
-                    dist_l = np.linalg.norm(nose - left_eye)
-                    dist_r = np.linalg.norm(nose - right_eye)
-                    eye_dist = np.linalg.norm(right_eye - left_eye)
-                    is_profile = False
-                    if eye_dist > 1e-4:
-                        ratio = abs(dist_l - dist_r) / eye_dist
-                        if ratio > 0.45: # 两眼到鼻子距离显著不对称，判定为侧脸
-                            is_profile = True
-
-                    # 根据头部位置自适应外延为 2:1 黄金高宽比的人体头肩躯干区域
-                    # 人体通常头高占全身约 1/7，上半身占 1/3.5
-                    person_w = int(fw * 2.4)
-                    person_h = int(person_w * 2.0) # 保持 2:1 高宽比
-
-                    # 头部居于上半部分 (顶部留 15% 边距)
-                    center_x = fx + fw // 2
-                    px1 = max(0, center_x - person_w // 2)
-                    py1 = max(0, fy - int(fh * 0.3))
-                    px2 = min(w, px1 + person_w)
-                    py2 = min(h, py1 + person_h)
-
-                    person_crop = frame_bgr[py1:py2, px1:px2]
-                    if person_crop.size > 0:
-                        aligned = self.letterbox_person(person_crop, self.target_size)
+        # 策略 1: 优先使用 YOLOv8-Nano 检测画面中所有人
+        if self.yolo_model is not None:
+            try:
+                preds = self.yolo_model(frame_bgr, classes=[0], conf=0.40, device="mps", verbose=False)
+                if len(preds) > 0 and len(preds[0].boxes) > 0:
+                    for b in preds[0].boxes:
+                        xyxy = b.xyxy.cpu().numpy()[0]
+                        conf = float(b.conf[0])
+                        x1, y1 = max(0, int(xyxy[0])), max(0, int(xyxy[1]))
+                        x2, y2 = min(w, int(xyxy[2])), min(h, int(xyxy[3]))
+                        bw, bh = x2 - x1, y2 - y1
+                        # 过滤远景微小噪点 (门厅通行人员高度通常不低于 80px)
+                        if bw < 40 or bh < 80:
+                            continue
+                        crop = frame_bgr[y1:y2, x1:x2]
+                        if crop.size == 0:
+                            continue
+                        aligned, _ = crop_maximal_aspect_ratio(crop, self.target_size)
                         results.append(DetectedPerson(
-                            bbox=(px1, py1, px2 - px1, py2 - py1),
+                            bbox=(x1, y1, bw, bh),
                             confidence=conf,
-                            has_face=True,
-                            is_profile_or_occluded=is_profile,
-                            landmarks=landmarks,
+                            has_face=False,
+                            is_profile_or_occluded=False,
+                            landmarks=None,
                             aligned_patch=aligned
                         ))
+            except Exception as e:
+                print(f"[Detector] YOLO 推理警告: {e}")
 
-        # 策略 2: 若未检测到人脸（看不到正脸/低头/背身），启动 HOG 人体全身/半身检测
-        if len(results) == 0:
-            boxes, weights = self.hog_detector.detectMultiScale(
-                frame_bgr,
-                winStride=(8, 8),
-                padding=(16, 16),
-                scale=1.05
-            )
-            for (bx, by, bw, bh), weight in zip(boxes, weights):
-                if weight < 0.2:
-                    continue
-                # 人体框裁剪
-                bx1, by1 = max(0, bx), max(0, by)
-                bx2, by2 = min(w, bx + bw), min(h, by + bh)
-                crop = frame_bgr[by1:by2, bx1:bx2]
-                if crop.size > 0:
-                    aligned = self.letterbox_person(crop, self.target_size)
-                    results.append(DetectedPerson(
-                        bbox=(bx1, by1, bx2 - bx1, by2 - by1),
-                        confidence=float(min(1.0, 0.6 + weight * 0.4)),
-                        has_face=False,
-                        is_profile_or_occluded=True, # 无脸或背身
-                        landmarks=None,
-                        aligned_patch=aligned
-                    ))
-
-        # 策略 3: 如果上述均未触发，但用户保证画面即主体，提供全局保底切片
+        # 策略 2: 若未检测到目标，提供全画幅最大长宽比保底切片
         if len(results) == 0:
             results.append(self.process_direct_subject(frame_bgr))
 

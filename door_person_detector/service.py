@@ -135,17 +135,9 @@ class PersonInferenceEngine:
         t0 = time.time()
         h_img, w_img = image_bgr.shape[:2]
 
-        # 统一长宽比最大化保留截取 + 缩放 (与训练集严格对齐：绝对不拉伸形变，居中保留最大画幅，512x256 高清分辨率)
-        patch, crop_bbox = crop_maximal_aspect_ratio(image_bgr, target_hw=(512, 256))
-        direct_subject = DetectedPerson(
-            bbox=crop_bbox,
-            confidence=1.0,
-            has_face=False,
-            is_profile_or_occluded=False,
-            landmarks=None,
-            aligned_patch=patch
-        )
-        rec_results = self.recognizer.identify_batch([direct_subject])
+        # 使用 YOLOv8-Nano 多目标人体检测 (支持单人、多人合影、偏位，自动提取每个人体切片)
+        detected_persons = self.detector.detect(image_bgr)
+        rec_results = self.recognizer.identify_batch(detected_persons)
         summary: FrameSummary = self.recognizer.summarize_frame(rec_results)
         summary.latency_ms = round((time.time() - t0) * 1000.0, 2)
 
