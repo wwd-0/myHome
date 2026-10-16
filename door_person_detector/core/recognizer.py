@@ -88,12 +88,16 @@ class PersonRecognizer:
         self.model.eval()
 
         self.weights_path = weights_path
+        self.classes: List[str] = []
+        self.class_to_idx: Dict[str, int] = {}
+        self.classifier_weight: Optional[torch.Tensor] = None
         self._load_weights(weights_path)
 
-        # 2. 家人特征向量底库 { "爸爸": ndarray(512,), "妈妈": ndarray(512,) }
+        # 2. 家人特征向量底库 (作为备选方案)
         self.gallery_path = gallery_path
         self.family_gallery: Dict[str, np.ndarray] = {}
-        self.load_gallery(gallery_path)
+        if gallery_path:
+            self.load_gallery(gallery_path)
 
     def _load_weights(self, weights_path: str):
         if weights_path and os.path.exists(weights_path):
@@ -105,6 +109,16 @@ class PersonRecognizer:
                     self.model.load_state_dict(ckpt["backbone"])
                 elif isinstance(ckpt, dict):
                     self.model.load_state_dict(ckpt)
+
+                # 方案 A 核心：直接加载分类头权重与家庭成员标签（0 照片依赖）
+                if isinstance(ckpt, dict) and "classes" in ckpt:
+                    self.classes = ckpt["classes"]
+                    self.class_to_idx = ckpt.get("class_to_idx", {})
+                    if "head" in ckpt and "weight" in ckpt["head"]:
+                        head_w = ckpt["head"]["weight"]
+                        self.classifier_weight = F.normalize(head_w, p=2, dim=1).to(self.device)
+                        print(f"[Recognizer - 方案A] 成功加载端到端分类头！已固化学习家庭成员: {self.classes}")
+
                 print(f"[Recognizer] 成功载入模型权重: {weights_path}")
             except Exception as e:
                 print(f"[Recognizer] 载入权重异常: {e}，使用初始预训练网络")
@@ -231,6 +245,46 @@ class PersonRecognizer:
         avg_latency = latency_total / max(1, len(persons))
 
         results: List[RecognitionResult] = []
+
+        # 方案 A 优先：端到端模型分类头直接推理（0 照片依赖）
+        if self.classifier_weight is not None and len(self.classes) > 0:
+            with torch.no_grad():
+                embeddings_t = self.model(batch_input, normalize=True)
+                sims_matrix = torch.matmul(embeddings_t, self.classifier_weight.t())
+
+            for idx, p in enumerate(persons):
+                sims = sims_matrix[idx]
+                best_score_t, best_idx_t = torch.max(sims, dim=0)
+                best_score = float(best_score_t.item())
+                best_idx = int(best_idx_t.item())
+                best_name = self.classes[best_idx]
+
+                # 判定阈值：ArcFace 空间中自家人通常在 0.35~0.60 之间，陌生人通常 <= 0.15
+                threshold = 0.28 if self.similarity_threshold > 0.5 else self.similarity_threshold
+                if best_score >= threshold:
+                    is_stranger = False
+                    is_family = True
+                    identified_name = best_name
+                else:
+                    is_stranger = True
+                    is_family = False
+                    identified_name = "陌生人"
+
+                # 归一化置信度至 [0, 1] 方便前端展示
+                norm_score = max(0.0, min(1.0, (best_score + 0.2) / 0.8))
+
+                results.append(RecognitionResult(
+                    person_name=identified_name,
+                    similarity_score=round(norm_score, 4),
+                    is_stranger=is_stranger,
+                    is_family=is_family,
+                    bbox=p.bbox,
+                    has_face=p.has_face,
+                    is_profile=p.is_profile_or_occluded,
+                    latency_ms=avg_latency
+                ))
+            return results
+
         gallery_names = list(self.family_gallery.keys())
         gallery_matrix = np.array([self.family_gallery[n] for n in gallery_names]) if gallery_names else None
 

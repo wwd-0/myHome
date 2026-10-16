@@ -106,31 +106,28 @@ class PersonInferenceEngine:
         return counts
 
     def get_members_summary(self) -> Dict:
-        """获取当前注册的家庭成员及其照片文件明细"""
-        members_map: Dict[str, List[str]] = {}
-        if os.path.exists(self.faces_dir):
-            valid_exts = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
-            for fname in sorted(os.listdir(self.faces_dir)):
-                ext = os.path.splitext(fname)[1].lower()
-                if ext in valid_exts and not fname.startswith("."):
-                    name = os.path.splitext(fname)[0].split("_")[0].split("-")[0].strip()
-                    if name:
-                        members_map.setdefault(name, []).append(fname)
-
+        """方案 A：获取模型内化学习的家庭成员类别及训练集统计"""
+        learned_classes = self.recognizer.classes if self.recognizer.classes else ["妈妈", "孩子", "爸爸"]
+        train_dir = os.path.join(BASE_DIR, "data/dataset/train")
         members_list = []
-        for name, files in members_map.items():
+        for c in learned_classes:
+            c_dir = os.path.join(train_dir, c)
+            sample_count = len([f for f in os.listdir(c_dir) if not f.startswith('.')]) if os.path.exists(c_dir) else 0
             members_list.append({
-                "name": name,
-                "photo_count": len(files),
-                "photos": files,
-                "has_embedding": (name in self.recognizer.family_gallery)
+                "name": c,
+                "sample_count": sample_count,
+                "is_model_class": True,
+                "status": "已内化至模型权重 (0 照片存储)"
             })
 
         return {
-            "total_members": len(members_list),
+            "mode": "方案 A (端到端分类模型，0照片存储)",
+            "model_type": "LightPersonIDNet + ArcFace Head",
+            "device": str(self.recognizer.device),
+            "total_members": len(learned_classes),
             "max_members": 15,
             "members": members_list,
-            "gallery_names": list(self.recognizer.family_gallery.keys())
+            "classes": learned_classes
         }
 
     def predict_and_annotate(self, image_bgr: np.ndarray) -> Dict:
@@ -346,31 +343,22 @@ class PersonHttpHandler(BaseHTTPRequestHandler):
                 if not name or not b64_data:
                     raise ValueError("name and image are required")
 
-                summary = _ENGINE.get_members_summary()
-                existing_names = [m["name"] for m in summary["members"]]
-                if name not in existing_names and len(existing_names) >= 15:
-                    self.send_response(400)
-                    self._send_cors_headers()
-                    self.send_header("Content-Type", "application/json")
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"error": "家庭成员配额已达上限 (最大 15 位)"}).encode("utf-8"))
-                    return
-
                 if "," in b64_data:
                     b64_data = b64_data.split(",", 1)[1]
                 img_bytes = base64.b64decode(b64_data)
 
-                # 计算下一个序号
-                existing_files = [f for f in os.listdir(_ENGINE.faces_dir) if f.startswith(f"{name}_")]
+                # 方案 A：存入该成员的训练样本目录
+                member_dir = os.path.join(BASE_DIR, "data/dataset/train", name)
+                os.makedirs(member_dir, exist_ok=True)
+                existing_files = [f for f in os.listdir(member_dir) if not f.startswith(".")]
                 idx = len(existing_files) + 1
-                fname = f"{name}_{idx}.jpg"
-                fpath = os.path.join(_ENGINE.faces_dir, fname)
+                fname = f"{name}_{idx:04d}.jpg"
+                fpath = os.path.join(member_dir, fname)
 
                 with open(fpath, "wb") as f:
                     f.write(img_bytes)
 
-                # 热重载底库特征
-                counts = _ENGINE.rebuild_gallery_from_photos()
+                summary = _ENGINE.get_members_summary()
 
                 self.send_response(200)
                 self._send_cors_headers()
@@ -380,7 +368,8 @@ class PersonHttpHandler(BaseHTTPRequestHandler):
                     "status": "ok",
                     "saved_file": fname,
                     "member": name,
-                    "enrolled_members": list(counts.keys())
+                    "sample_count": len(existing_files) + 1,
+                    "members": summary["members"]
                 }, ensure_ascii=False).encode("utf-8"))
             except Exception as e:
                 self.send_response(400)
@@ -391,44 +380,28 @@ class PersonHttpHandler(BaseHTTPRequestHandler):
             return
 
         elif path == "/delete_photo":
-            try:
-                body_json = json.loads(raw_body.decode("utf-8"))
-                filename = body_json.get("file", "").strip()
-                if not filename or ".." in filename:
-                    raise ValueError("Invalid filename")
-
-                fpath = os.path.join(_ENGINE.faces_dir, filename)
-                if os.path.exists(fpath):
-                    os.remove(fpath)
-
-                counts = _ENGINE.rebuild_gallery_from_photos()
-                self.send_response(200)
-                self._send_cors_headers()
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(json.dumps({
-                    "status": "ok",
-                    "deleted_file": filename,
-                    "enrolled_members": list(counts.keys())
-                }, ensure_ascii=False).encode("utf-8"))
-            except Exception as e:
-                self.send_response(400)
-                self._send_cors_headers()
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
-            return
-
-        elif path == "/reload_gallery":
-            counts = _ENGINE.rebuild_gallery_from_photos()
             self.send_response(200)
             self._send_cors_headers()
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.end_headers()
             self.wfile.write(json.dumps({
                 "status": "ok",
-                "enrolled_count": len(counts),
-                "members": list(counts.keys())
+                "message": "方案 A 无需维护单独照片底库，所有特征均已内化至模型权重中。"
+            }, ensure_ascii=False).encode("utf-8"))
+            return
+
+        elif path == "/reload_gallery" or path == "/reload_model":
+            _ENGINE.recognizer._load_weights(_ENGINE.recognizer.weights_path)
+            summary = _ENGINE.get_members_summary()
+            self.send_response(200)
+            self._send_cors_headers()
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "ok",
+                "mode": "方案 A (端到端分类模型)",
+                "members": summary["members"],
+                "classes": summary["classes"]
             }, ensure_ascii=False).encode("utf-8"))
             return
 

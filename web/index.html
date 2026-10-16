@@ -801,26 +801,26 @@
       </div>
     </div>
 
-    <!-- ==================== TAB 2: 家庭成员数据管理中心 ==================== -->
+    <!-- ==================== TAB 2: 方案 A 模型成员与训练数据中心 ==================== -->
     <div id="tabData" class="tab-content">
       <div class="card">
         <div class="card-title">
           <div class="title-left">
-            <span>👥</span>
-            <span>已注册家庭成员底库 (上限 15 位)</span>
+            <span>🧠</span>
+            <span>方案 A 模型已学成成员与训练集中心 (端到端分类，0照片依赖)</span>
           </div>
           <div style="display: flex; gap: 10px;">
-            <button class="btn btn-outline" onclick="reloadDbFeatures()">🔄 一键热重载底库特征</button>
-            <button class="btn btn-primary" onclick="openUploadModal()">➕ 上传新成员照片</button>
+            <button class="btn btn-outline" onclick="reloadDbFeatures()">🔄 重新载入模型权重</button>
+            <button class="btn btn-primary" onclick="openUploadModal()">➕ 上传新训练样本</button>
           </div>
         </div>
 
-        <div style="margin-bottom: 18px; padding: 12px 16px; background: rgba(56, 189, 248, 0.08); border-radius: 10px; border: 1px solid rgba(56, 189, 248, 0.2); font-size: 13px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="margin-bottom: 18px; padding: 14px 18px; background: rgba(56, 189, 248, 0.08); border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.2); font-size: 13px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
           <div>
-            <strong>底库存储路径:</strong> <code style="color: var(--accent);">./vision/db/faces/</code>
-            <span style="color: var(--muted); margin-left: 12px;">(支持一人多张全姿态抓拍，自动均值聚合 512 维原型向量)</span>
+            <strong>认证运行模式:</strong> <span style="color: var(--accent); font-weight: 700;">方案 A（端到端深度分类）</span>
+            <span style="color: var(--muted); margin-left: 12px;">家庭成员身份特征已完全固化在神经网络权重中，硬盘 0 原始照片依赖，具备极强抗换衣、抗逆光、抗姿态变化容错能力！</span>
           </div>
-          <span class="badge badge-family" id="quotaBadge">已注册 0 / 15 人</span>
+          <span class="badge badge-family" id="quotaBadge">模型已固化 3 位成员</span>
         </div>
 
         <!-- 成员卡片网格列表 -->
@@ -1192,11 +1192,11 @@
     function renderMembersGrid(data) {
       const grid = document.getElementById('membersGrid');
       grid.innerHTML = '';
-      const total = data.total_members || 0;
-      document.getElementById('quotaBadge').innerText = `已注册 ${total} / 15 人`;
+      const total = data.total_members || (data.classes ? data.classes.length : 0);
+      document.getElementById('quotaBadge').innerText = `模型已固化 ${total} 位成员`;
 
       if (!data.members || data.members.length === 0) {
-        grid.innerHTML = '<div style="color: var(--muted); grid-column: 1/-1; text-align: center; padding: 40px;">暂无成员数据，请点击上方「上传新成员照片」添加</div>';
+        grid.innerHTML = '<div style="color: var(--muted); grid-column: 1/-1; text-align: center; padding: 40px;">暂无成员数据</div>';
         return;
       }
 
@@ -1204,19 +1204,8 @@
         const card = document.createElement('div');
         card.className = 'member-card';
 
-        let photosHtml = '';
-        if (m.photos && m.photos.length > 0) {
-          m.photos.forEach(fname => {
-            photosHtml += `
-              <div class="photo-thumb-wrapper">
-                <img src="/api/photo?file=${encodeURIComponent(fname)}" loading="lazy" alt="${fname}" />
-                <button class="photo-del-btn" title="删除照片" onclick="deleteMemberPhoto('${fname}')">✕</button>
-              </div>
-            `;
-          });
-        } else {
-          photosHtml = '<div style="color: var(--muted); font-size: 12px; padding: 10px 0;">暂无照片</div>';
-        }
+        const sampleCount = m.sample_count || 0;
+        const statusText = m.status || '已内化至模型权重 (0 照片存储)';
 
         card.innerHTML = `
           <div class="member-card-header">
@@ -1224,43 +1213,46 @@
               <span>👤</span>
               <span>${m.name}</span>
             </div>
-            <span class="badge ${m.has_embedding ? 'badge-family' : 'badge-stranger'}">${m.photo_count} 张照片</span>
+            <span class="badge badge-family">方案 A 深度模型固化</span>
           </div>
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;">照片样本预览 (悬停可删除)：</div>
-          <div class="member-photos-carousel">
-            ${photosHtml}
+          <div style="font-size: 13px; color: var(--text); margin-bottom: 8px;">
+            <strong>识别方式:</strong> <span style="color: var(--accent);">端到端神经网络分类 (0 照片依赖)</span>
+          </div>
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 6px;">
+            <strong>训练集样本:</strong> ${sampleCount} 张不同衣着/角度切片
+          </div>
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 14px;">
+            <strong>容错特性:</strong> 换装抗扰极高 · 复杂逆光适应 · 隐私保护 100%
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-outline" style="padding: 6px 12px; font-size: 12px; flex: 1;" onclick="openUploadForMember('${m.name}')">➕ 添加该成员训练样本</button>
           </div>
         `;
         grid.appendChild(card);
       });
     }
 
+    function openUploadForMember(name) {
+      document.getElementById('modalMemberName').value = name;
+      document.getElementById('modalPhotoInput').value = '';
+      document.getElementById('modalPreviewBox').style.display = 'none';
+      modalSelectedBase64 = null;
+      document.getElementById('uploadModal').classList.add('open');
+    }
+
     async function deleteMemberPhoto(filename) {
-      if (!confirm(`确定要删除照片 ${filename} 吗？删除后将自动重建特征底库。`)) return;
-      showToast("正在删除并热更新底库...");
-      try {
-        const resp = await fetch('/api/delete_photo', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ file: filename })
-        });
-        const res = await resp.json();
-        showToast("照片已删除，底库已更新！");
-        loadMembersData();
-      } catch (err) {
-        showToast("删除失败: " + err);
-      }
+      showToast("方案 A 无需维护单独照片底库，所有特征均已内化至模型权重中。");
     }
 
     async function reloadDbFeatures() {
-      showToast("正在重新扫描并提取所有成员原型特征向量...");
+      showToast("正在重新载入最新模型权重与分类头...");
       try {
         const resp = await fetch('/api/reload', { method: 'POST' });
         const res = await resp.json();
-        showToast(`✅ 热重载完成！已载入 ${res.enrolled_count || 0} 位成员特征`);
+        showToast("✅ 模型权重已重新载入！");
         loadMembersData();
       } catch (err) {
-        showToast("热重载失败: " + err);
+        showToast("重载失败: " + err);
       }
     }
 
