@@ -725,7 +725,7 @@ void runHttpServer(VerifyServiceCoordinator& coordinator, int port) {
 
             // 4. JSON REST API 处理
             json resp_json;
-            if (path == "/api/test_image") {
+            if (path == "/api/test_image" || path == "/api/predict") {
                 try {
                     auto j = json::parse(req_body);
                     std::string b64 = j.value("image", "");
