@@ -819,8 +819,12 @@ int main(int argc, char** argv) {
 
     curl_global_init(CURL_GLOBAL_ALL);
 
-    // 实例化全新人体识别引擎 (彻底替代原 YuNet/SFace 人脸引擎)
-    myhome::CppPersonEngine person_engine("http://127.0.0.1:8092", db_dir);
+    // 实例化纯 C++ 原生人体识别引擎 (YOLOv8-Nano + MobileNetV3 ArcFace, 0 Python 依赖)
+    myhome::CppPersonEngine person_engine(
+        "./vision/models/yolov8n.onnx",
+        "./vision/models/person_classifier.onnx",
+        "./vision/models/classes.json",
+        db_dir);
 
     // 实例化手势识别引擎
     myhome::CppGestureEngine gesture_engine(
