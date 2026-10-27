@@ -10,6 +10,9 @@ from core.recognizer import PersonRecognizer
 
 
 def evaluate_model(config_path="config.yaml"):
+    default_cfg = os.path.join(os.path.dirname(__file__), "config.yaml")
+    if config_path == "config.yaml" and os.path.exists(default_cfg):
+        config_path = default_cfg
     with open(config_path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 

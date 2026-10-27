@@ -64,9 +64,10 @@ std::optional<std::vector<cv::Point3f>> CppGestureEngine::detectHandLandmarks(co
     cv::Mat padded = cv::Mat::zeros(192, 192, CV_8UC3);
     resized.copyTo(padded(cv::Rect(pad_left, pad_top, nw, nh)));
 
+    cv::Mat padded_f;
+    padded.convertTo(padded_f, CV_32FC3, 1.0 / 255.0);
     int sz_p[] = {1, 192, 192, 3};
-    cv::Mat blob_p(4, sz_p, CV_32F);
-    padded.convertTo(blob_p.reshape(3, 192 * 192), CV_32F, 1.0 / 255.0);
+    cv::Mat blob_p = cv::Mat(4, sz_p, CV_32F, padded_f.data).clone();
 
     palm_net_.setInput(blob_p);
     std::vector<cv::Mat> out_p;
@@ -127,9 +128,10 @@ std::optional<std::vector<cv::Point3f>> CppGestureEngine::detectHandLandmarks(co
     cv::Mat hand_crop;
     cv::warpAffine(rgb, hand_crop, rot_mat, cv::Size(224, 224), cv::INTER_LINEAR);
 
+    cv::Mat hand_f;
+    hand_crop.convertTo(hand_f, CV_32FC3, 1.0 / 255.0);
     int sz_h[] = {1, 224, 224, 3};
-    cv::Mat blob_h(4, sz_h, CV_32F);
-    hand_crop.convertTo(blob_h.reshape(3, 224 * 224), CV_32F, 1.0 / 255.0);
+    cv::Mat blob_h = cv::Mat(4, sz_h, CV_32F, hand_f.data).clone();
 
     hand_net_.setInput(blob_h);
     std::vector<cv::Mat> out_h;

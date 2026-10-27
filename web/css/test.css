@@ -1,0 +1,173 @@
+/* ==============================================================================
+   MyHome AI - 视觉感知测试专属模块样式 (test.css)
+   ============================================================================== */
+
+/* 上传测试区 (拖拽) */
+.upload-zone {
+  border: 2px dashed #2d3e56;
+  border-radius: 14px;
+  padding: 30px 20px;
+  text-align: center;
+  cursor: pointer;
+  background: #0f1724;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.upload-zone:hover, .upload-zone.dragover {
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.06);
+}
+
+.upload-icon {
+  font-size: 38px;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.upload-hint {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+/* 图像标注展示盒 */
+.preview-box {
+  margin-top: 18px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #233148;
+  background: #080c14;
+  text-align: center;
+  position: relative;
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-box img {
+  max-width: 100%;
+  max-height: 460px;
+  object-fit: contain;
+  display: block;
+}
+
+.preview-placeholder {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 光耦继电器动画指示条 */
+.relay-banner {
+  margin-top: 16px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: #0d1420;
+  border: 1px solid #202e42;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.relay-indicator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.relay-led {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #334155;
+  transition: all 0.3s ease;
+}
+
+.relay-led.active {
+  background: var(--success);
+  box-shadow: 0 0 18px var(--success);
+  animation: pulse 0.4s infinite;
+}
+
+/* 三模式交互仿真面板 */
+.sim-panel {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+@media (max-width: 768px) {
+  .sim-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sim-btn-card {
+  background: #0e1624;
+  border: 1px solid #1e2d42;
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.sim-btn-card:hover {
+  border-color: var(--accent);
+  background: #141f30;
+  transform: translateY(-2px);
+}
+
+.sim-btn-card .sim-icon {
+  font-size: 22px;
+  margin-bottom: 6px;
+}
+
+.sim-btn-card h4 {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.sim-btn-card p {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* 主体明细单卡 */
+.person-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #0b111a;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  border: 1px solid #1a2536;
+}
+
+.person-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.person-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}

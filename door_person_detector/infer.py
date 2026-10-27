@@ -83,8 +83,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     cfg_file = args.config
-    if not os.path.exists(cfg_file):
-        cfg_file = os.path.join(os.path.dirname(__file__), "config.yaml")
+    default_cfg = os.path.join(os.path.dirname(__file__), "config.yaml")
+    if cfg_file == "config.yaml" and not os.path.exists("paths"):
+        # 如果从根目录运行且根目录 config.yaml 没有 paths 节点，则使用模块自带配置
+        if os.path.exists(default_cfg):
+            cfg_file = default_cfg
+    elif not os.path.exists(cfg_file):
+        cfg_file = default_cfg
 
     if args.image:
         run_inference(args.image, cfg_file)

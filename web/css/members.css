@@ -1,0 +1,62 @@
+/* ==============================================================================
+   MyHome AI - 家庭成员数据中心专属模块样式 (members.css)
+   ============================================================================== */
+
+.members-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.member-card {
+  background: #111827;
+  border: 1px solid #1f2d42;
+  border-radius: 14px;
+  padding: 18px;
+  transition: all 0.2s ease;
+}
+
+.member-card:hover {
+  border-color: #2b3d56;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.member-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.member-name-tag {
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.member-photos-carousel {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 8px 0;
+  scrollbar-width: thin;
+}
+
+.photo-thumb-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  width: 84px;
+  height: 84px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #28374d;
+}
+
+.photo-thumb-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

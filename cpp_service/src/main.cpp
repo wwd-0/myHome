@@ -155,23 +155,41 @@ void runHttpServer(std::shared_ptr<myhome::VerifyServiceCoordinator> coordinator
                 return;
             }
 
-            // 1. 静态主页 /
-            if (path == "/" || path == "/index.html") {
-                std::ifstream ifs("./web/index.html", std::ios::binary);
-                if (ifs) {
-                    std::ostringstream html_ss;
-                    html_ss << ifs.rdbuf();
-                    std::string html = html_ss.str();
-                    std::ostringstream hdr;
-                    hdr << "HTTP/1.1 200 OK\r\n"
-                        << "Content-Type: text/html; charset=utf-8\r\n"
-                        << "Content-Length: " << html.size() << "\r\n"
-                        << "Cache-Control: no-cache\r\n"
-                        << "Connection: close\r\n\r\n";
-                    safeSocketWrite(client_fd, hdr.str());
-                    safeSocketWrite(client_fd, html);
-                    ::close(client_fd);
-                    return;
+            // 1. 静态资源路由 (支持 /index.html, /css/*, /js/*, /assets/*)
+            if (path == "/" || path == "/index.html" || path.rfind("/css/", 0) == 0 || path.rfind("/js/", 0) == 0 || path.rfind("/assets/", 0) == 0) {
+                std::string rel_path = (path == "/" || path == "/index.html") ? "/index.html" : path;
+                // 防路径穿越安全检查
+                if (rel_path.find("..") == std::string::npos) {
+                    std::string disk_path = "./web" + rel_path;
+                    std::ifstream ifs(disk_path, std::ios::binary);
+                    if (ifs) {
+                        std::string mime = "text/plain";
+                        if (disk_path.rfind(".html") != std::string::npos) mime = "text/html; charset=utf-8";
+                        else if (disk_path.rfind(".css") != std::string::npos) mime = "text/css; charset=utf-8";
+                        else if (disk_path.rfind(".js") != std::string::npos) mime = "application/javascript; charset=utf-8";
+                        else if (disk_path.rfind(".json") != std::string::npos) mime = "application/json; charset=utf-8";
+                        else if (disk_path.rfind(".png") != std::string::npos) mime = "image/png";
+                        else if (disk_path.rfind(".jpg") != std::string::npos || disk_path.rfind(".jpeg") != std::string::npos) mime = "image/jpeg";
+                        else if (disk_path.rfind(".svg") != std::string::npos) mime = "image/svg+xml";
+
+                        ifs.seekg(0, std::ios::end);
+                        size_t file_sz = ifs.tellg();
+                        ifs.seekg(0, std::ios::beg);
+                        std::vector<uchar> buf(file_sz);
+                        ifs.read(reinterpret_cast<char*>(buf.data()), file_sz);
+
+                        std::ostringstream hdr;
+                        hdr << "HTTP/1.1 200 OK\r\n"
+                            << "Content-Type: " << mime << "\r\n"
+                            << "Content-Length: " << file_sz << "\r\n"
+                            << "Access-Control-Allow-Origin: *\r\n"
+                            << "Cache-Control: no-cache\r\n"
+                            << "Connection: close\r\n\r\n";
+                        safeSocketWrite(client_fd, hdr.str());
+                        safeSocketWriteBinary(client_fd, buf);
+                        ::close(client_fd);
+                        return;
+                    }
                 }
             }
 

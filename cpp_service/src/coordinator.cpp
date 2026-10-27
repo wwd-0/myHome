@@ -361,12 +361,16 @@ void VerifyServiceCoordinator::runMainThreadLoop() {
                 }
 
                 // 1. 高性能纯净视觉感知 (无无用 JPEG 渲染，节约 90% CPU)
-                FrameRecognitionResult frame_res = person_engine_->detectAndRecognize(frame);
+                FrameRecognitionResult frame_res;
+                std::string gesture_name = "NONE";
+                try {
+                    frame_res = person_engine_->detectAndRecognize(frame);
+                    auto gesture_res = gesture_engine_->detectGesture(frame);
+                    gesture_name = gesture_res.value_or("NONE");
+                } catch (const std::exception& e) {
+                    std::cerr << "⚠️ [C++ 核验服务] 视觉帧推理异常: " << e.what() << std::endl;
+                }
                 int elapsed_ms = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(now - t_start).count());
-
-                // 2. 检测手势
-                auto gesture_res = gesture_engine_->detectGesture(frame);
-                std::string gesture_name = gesture_res.value_or("NONE");
 
                 // 更新状态缓存
                 {

@@ -1,0 +1,357 @@
+/* ==============================================================================
+   MyHome AI - 左侧模块功能树导航与侧边栏样式 (sidebar.css)
+   ============================================================================== */
+
+:root {
+  --sidebar-width: 260px;
+}
+
+/* 主应用容器：左侧固定侧边栏 + 右侧主工作区 */
+.app-wrapper {
+  display: flex;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* 左侧固定侧边栏 */
+.sidebar {
+  width: var(--sidebar-width);
+  background: #0d131f;
+  border-right: 1px solid var(--card-border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 100;
+  user-select: none;
+}
+
+/* 动态宽度拖拽分割手柄 */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -4px;
+  width: 8px;
+  cursor: col-resize;
+  z-index: 110;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 24px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.sidebar-resizer:hover,
+body.is-resizing .sidebar-resizer {
+  background: rgba(56, 189, 248, 0.2);
+}
+
+.sidebar-resizer:hover::after,
+body.is-resizing .sidebar-resizer::after {
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+body.is-resizing,
+body.is-resizing * {
+  user-select: none !important;
+  cursor: col-resize !important;
+}
+
+/* 侧边栏顶部品牌区 */
+.sidebar-header {
+  padding: 20px 18px 16px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--accent-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.35);
+}
+
+.sidebar-brand-text h1 {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.sidebar-brand-text p {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+/* 侧边栏功能树列表区 */
+.sidebar-nav {
+  flex: 1;
+  padding: 16px 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* 模块树分组 */
+.tree-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 6px;
+}
+
+/* 一级目录标题：字号 15.5px (明显大于二级目录的 13.5px)，支持折叠点击 */
+.tree-group-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #e2e8f0;
+  letter-spacing: -0.2px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.tree-group-title:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.group-title-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.group-title-left .group-icon {
+  font-size: 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.group-title-left .group-text {
+  font-weight: 700;
+}
+
+/* 折叠箭头指示器 */
+.group-arrow {
+  font-size: 12px;
+  color: #64748b;
+  transition: transform 0.25s ease, color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+
+.tree-group-title:hover .group-arrow {
+  color: #cbd5e1;
+}
+
+/* 二级目录容器 (支持平滑折叠动画) */
+.tree-sub-items {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+  padding-left: 6px;
+  overflow: hidden;
+  transition: max-height 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+  max-height: 280px;
+  opacity: 1;
+}
+
+/* 折叠状态 */
+.tree-group.collapsed .tree-sub-items {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  pointer-events: none;
+}
+
+.tree-group.collapsed .group-arrow {
+  transform: rotate(-90deg);
+}
+
+/* 二级功能树节点项：字号 13.5px (略小于一级目录 15.5px) */
+.tree-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px 9px 16px;
+  border-radius: 9px;
+  color: #94a3b8;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+}
+
+.tree-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tree-item-icon {
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  color: #64748b;
+  transition: color 0.18s ease;
+}
+
+.tree-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  transform: translateX(2px);
+}
+
+.tree-item:hover .tree-item-icon {
+  color: #cbd5e1;
+}
+
+.tree-item.active {
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent);
+  border-color: rgba(56, 189, 248, 0.25);
+  font-weight: 700;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.tree-item.active .tree-item-icon {
+  color: var(--accent);
+}
+
+.tree-item-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+  font-weight: 700;
+}
+
+/* 侧边栏底部硬件与运行状态微卡 */
+.sidebar-footer {
+  padding: 14px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: #090e17;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-status-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.status-dot-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
+}
+
+.status-dot-indicator.stream {
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  animation: pulse 1s infinite alternate;
+}
+
+/* 右侧主工作区 */
+.main-content {
+  flex: 1;
+  margin-left: var(--sidebar-width);
+  padding: 24px 32px;
+  min-width: 0;
+}
+
+/* 右侧顶栏 (Breadcrumbs & Live Pills) */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 20px;
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--card-border);
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.top-bar-left {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+
+.page-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 响应式适配移动端折叠 */
+@media (max-width: 860px) {
+  .sidebar {
+    width: 72px;
+  }
+  .sidebar-brand-text, .tree-group-title, .tree-item-label, .tree-item-tag, .sidebar-footer {
+    display: none;
+  }
+  .main-content {
+    margin-left: 72px;
+    padding: 18px;
+  }
+}

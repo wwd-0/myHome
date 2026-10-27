@@ -3,888 +3,547 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MyHome 智能门禁控制台 - LightPersonIDNet 纯净感知与多模态管理</title>
-  <style>
-    :root {
-      --bg: #0b0f17;
-      --card: #131b29;
-      --card-hover: #192437;
-      --card-border: #1e2d44;
-      --card-border-glow: #38bdf8;
-      --text: #f1f5f9;
-      --muted: #94a3b8;
-      --accent: #38bdf8;
-      --accent-gradient: linear-gradient(135deg, #38bdf8 0%, #3b82f6 50%, #8b5cf6 100%);
-      --success: #10b981;
-      --success-bg: rgba(16, 185, 129, 0.15);
-      --warning: #f59e0b;
-      --warning-bg: rgba(245, 158, 11, 0.15);
-      --danger: #ef4444;
-      --danger-bg: rgba(239, 68, 68, 0.15);
-      --purple: #a855f7;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      padding: 24px;
-      min-height: 100vh;
-      line-height: 1.5;
-    }
-    .container {
-      max-width: 1360px;
-      margin: 0 auto;
-    }
-
-    /* 顶部导航与品牌 */
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: rgba(19, 27, 41, 0.85);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--card-border);
-      padding: 16px 24px;
-      border-radius: 16px;
-      margin-bottom: 24px;
-      flex-wrap: wrap;
-      gap: 16px;
-      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-    .brand-logo {
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
-      background: var(--accent-gradient);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 22px;
-      box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
-    }
-    .brand h1 {
-      font-size: 19px;
-      font-weight: 700;
-      letter-spacing: 0.3px;
-    }
-    .brand p {
-      font-size: 13px;
-      color: var(--muted);
-      margin-top: 2px;
-    }
-
-    /* 顶部导航 Tabs */
-    .nav-tabs {
-      display: flex;
-      gap: 8px;
-      background: #0d1420;
-      padding: 4px;
-      border-radius: 12px;
-      border: 1px solid #1e293b;
-    }
-    .nav-tab {
-      padding: 8px 18px;
-      border-radius: 8px;
-      border: none;
-      background: transparent;
-      color: var(--muted);
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      transition: all 0.2s ease;
-    }
-    .nav-tab:hover {
-      color: #fff;
-      background: rgba(255, 255, 255, 0.05);
-    }
-    .nav-tab.active {
-      background: var(--accent);
-      color: #0b0f17;
-      box-shadow: 0 0 16px rgba(56, 189, 248, 0.5);
-    }
-
-    /* 顶部状态角标 */
-    .status-group {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 14px;
-      border-radius: 999px;
-      font-size: 13px;
-      font-weight: 600;
-      background: #192334;
-      border: 1px solid #28374d;
-    }
-    .dot {
-      width: 9px;
-      height: 9px;
-      border-radius: 50%;
-    }
-    .dot.online { background: var(--success); box-shadow: 0 0 10px var(--success); }
-    .dot.pulse { background: var(--warning); box-shadow: 0 0 12px var(--warning); animation: pulse 1s infinite; }
-    .dot.relay-on { background: #38bdf8; box-shadow: 0 0 14px #38bdf8; animation: pulse 0.5s infinite; }
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.35); opacity: 0.7; }
-    }
-
-    /* Tab 内容容器 */
-    .tab-content {
-      display: none;
-    }
-    .tab-content.active {
-      display: block;
-      animation: fadeIn 0.25s ease;
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* 卡片体系 */
-    .card {
-      background: var(--card);
-      border: 1px solid var(--card-border);
-      border-radius: 16px;
-      padding: 22px;
-      margin-bottom: 22px;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-    .card:hover {
-      border-color: #293d5a;
-    }
-    .card-title {
-      font-size: 16px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 16px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    }
-    .card-title .title-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    /* 网格布局 */
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1.25fr 1fr;
-      gap: 22px;
-    }
-    .grid-3 {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 18px;
-    }
-    .grid-4 {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-    }
-    @media (max-width: 1024px) {
-      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
-    }
-
-    /* 上传测试区 (拖拽) */
-    .upload-zone {
-      border: 2px dashed #2d3e56;
-      border-radius: 14px;
-      padding: 32px 20px;
-      text-align: center;
-      cursor: pointer;
-      background: #0f1724;
-      transition: all 0.2s ease;
-      position: relative;
-    }
-    .upload-zone:hover, .upload-zone.dragover {
-      border-color: var(--accent);
-      background: rgba(56, 189, 248, 0.06);
-    }
-    .upload-icon {
-      font-size: 42px;
-      margin-bottom: 10px;
-      display: block;
-    }
-    .upload-hint {
-      font-size: 13px;
-      color: var(--muted);
-      margin-top: 6px;
-    }
-
-    /* 图像展示预览 */
-    .preview-box {
-      margin-top: 18px;
-      border-radius: 12px;
-      overflow: hidden;
-      border: 1px solid #233148;
-      background: #080c14;
-      text-align: center;
-      position: relative;
-      min-height: 280px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .preview-box img {
-      max-width: 100%;
-      max-height: 480px;
-      object-fit: contain;
-      display: block;
-      margin: 0 auto;
-    }
-    .preview-placeholder {
-      color: var(--muted);
-      font-size: 14px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-    }
-
-    /* 纯净感知数据统计指标 */
-    .metric-card {
-      background: #0f1623;
-      border: 1px solid #1f2c42;
-      border-radius: 12px;
-      padding: 16px;
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-    }
-    .metric-card::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0; height: 3px;
-      background: var(--accent);
-    }
-    .metric-card.green::before { background: var(--success); }
-    .metric-card.red::before { background: var(--danger); }
-    .metric-card.purple::before { background: var(--purple); }
-    .metric-label {
-      font-size: 12px;
-      color: var(--muted);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .metric-val {
-      font-size: 28px;
-      font-weight: 800;
-      margin: 6px 0 2px 0;
-      color: #fff;
-    }
-    .metric-sub {
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    /* 识别明细列表 */
-    .person-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 14px;
-      background: #0d1420;
-      border: 1px solid #1f2c40;
-      border-radius: 10px;
-      margin-bottom: 10px;
-      transition: transform 0.15s ease;
-    }
-    .person-item:hover {
-      transform: translateX(4px);
-    }
-    .person-info {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .person-avatar {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      background: #1e293b;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-    }
-    .person-name {
-      font-size: 14px;
-      font-weight: 700;
-    }
-    .person-status {
-      font-size: 12px;
-      color: var(--muted);
-    }
-    .badge {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 700;
-    }
-    .badge-family {
-      background: var(--success-bg);
-      color: var(--success);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-    }
-    .badge-stranger {
-      background: var(--danger-bg);
-      color: var(--danger);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-    }
-    .badge-mode {
-      background: rgba(56, 189, 248, 0.15);
-      color: var(--accent);
-      border: 1px solid rgba(56, 189, 248, 0.3);
-    }
-
-    /* 按钮组 */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 10px 18px;
-      border-radius: 10px;
-      border: none;
-      font-size: 13px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    .btn-primary {
-      background: var(--accent);
-      color: #0b0f17;
-    }
-    .btn-primary:hover {
-      background: #7dd3fc;
-      box-shadow: 0 0 16px rgba(56, 189, 248, 0.5);
-    }
-    .btn-success {
-      background: var(--success);
-      color: #0b0f17;
-    }
-    .btn-success:hover {
-      background: #34d399;
-      box-shadow: 0 0 16px rgba(16, 185, 129, 0.5);
-    }
-    .btn-warning {
-      background: var(--warning);
-      color: #0b0f17;
-    }
-    .btn-danger {
-      background: var(--danger);
-      color: #fff;
-    }
-    .btn-outline {
-      background: #141c2a;
-      color: var(--text);
-      border: 1px solid #28374d;
-    }
-    .btn-outline:hover {
-      background: #1d283c;
-      border-color: #3b82f6;
-    }
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    /* 硬件仿真控制面板 */
-    .sim-panel {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 14px;
-      margin-top: 14px;
-    }
-    .sim-btn-card {
-      background: #0f1623;
-      border: 1px solid #223249;
-      border-radius: 12px;
-      padding: 14px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      text-align: left;
-    }
-    .sim-btn-card:hover {
-      border-color: var(--accent);
-      background: #141f30;
-      transform: translateY(-2px);
-    }
-    .sim-btn-card .sim-icon {
-      font-size: 24px;
-      margin-bottom: 8px;
-    }
-    .sim-btn-card h4 {
-      font-size: 14px;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-    .sim-btn-card p {
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.4;
-    }
-
-    /* 光耦继电器动画指示灯 */
-    .relay-banner {
-      margin-top: 16px;
-      padding: 14px 18px;
-      border-radius: 12px;
-      background: #0d1420;
-      border: 1px solid #202e42;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .relay-indicator {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .relay-led {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: #334155;
-      transition: all 0.3s ease;
-    }
-    .relay-led.active {
-      background: #10b981;
-      box-shadow: 0 0 18px #10b981;
-      animation: pulse 0.4s infinite;
-    }
-
-    /* 成员底库网格卡片 */
-    .members-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 18px;
-    }
-    .member-card {
-      background: #111827;
-      border: 1px solid #1f2d42;
-      border-radius: 14px;
-      padding: 18px;
-      transition: all 0.2s ease;
-    }
-    .member-card:hover {
-      border-color: #38bdf8;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    }
-    .member-card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-    }
-    .member-name-tag {
-      font-size: 16px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .member-photos-carousel {
-      display: flex;
-      gap: 10px;
-      overflow-x: auto;
-      padding: 8px 0;
-      scrollbar-width: thin;
-    }
-    .photo-thumb-wrapper {
-      position: relative;
-      flex-shrink: 0;
-      width: 84px;
-      height: 84px;
-      border-radius: 10px;
-      overflow: hidden;
-      border: 1px solid #28374d;
-    }
-    .photo-thumb-wrapper img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    .photo-del-btn {
-      position: absolute;
-      top: 4px;
-      right: 4px;
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: rgba(239, 68, 68, 0.85);
-      color: #fff;
-      border: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      cursor: pointer;
-      opacity: 0;
-      transition: opacity 0.15s ease;
-    }
-    .photo-thumb-wrapper:hover .photo-del-btn {
-      opacity: 1;
-    }
-
-    /* 弹窗 / 模态框 */
-    .modal-overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.75);
-      backdrop-filter: blur(8px);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 999;
-    }
-    .modal-overlay.open {
-      display: flex;
-    }
-    .modal-card {
-      background: #141d2b;
-      border: 1px solid #273852;
-      border-radius: 16px;
-      width: 90%;
-      max-width: 520px;
-      padding: 24px;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-    }
-    .form-group {
-      margin-bottom: 16px;
-    }
-    .form-group label {
-      display: block;
-      font-size: 13px;
-      font-weight: 600;
-      margin-bottom: 6px;
-      color: var(--muted);
-    }
-    .form-control {
-      width: 100%;
-      padding: 10px 14px;
-      background: #0d1420;
-      border: 1px solid #233148;
-      border-radius: 8px;
-      color: #fff;
-      font-size: 14px;
-    }
-    .form-control:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    /* 历史记录表格 */
-    .table-container {
-      overflow-x: auto;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-    th, td {
-      padding: 12px 14px;
-      text-align: left;
-      border-bottom: 1px solid #1e293b;
-    }
-    th {
-      color: var(--muted);
-      font-weight: 600;
-      background: #0d1420;
-    }
-    tr:hover td {
-      background: rgba(255, 255, 255, 0.02);
-    }
-
-    /* 全局 Toast 通知 */
-    #toast {
-      position: fixed;
-      bottom: 28px;
-      right: 28px;
-      background: #1e293b;
-      border: 1px solid #334155;
-      padding: 12px 22px;
-      border-radius: 10px;
-      font-size: 14px;
-      font-weight: 600;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-      transform: translateY(100px);
-      opacity: 0;
-      transition: all 0.25s ease;
-      z-index: 1000;
-    }
-    #toast.show {
-      transform: translateY(0);
-      opacity: 1;
-    }
-  </style>
+  <title>MyHome AI - 智能门禁与门锁管理中枢</title>
+  
+  <!-- 模块化 CSS 样式架构 -->
+  <link rel="stylesheet" href="/css/variables.css" />
+  <link rel="stylesheet" href="/css/sidebar.css" />
+  <link rel="stylesheet" href="/css/layout.css" />
+  <link rel="stylesheet" href="/css/components.css" />
+  <link rel="stylesheet" href="/css/lock.css" />
+  <link rel="stylesheet" href="/css/test.css" />
+  <link rel="stylesheet" href="/css/members.css" />
 </head>
 <body>
-  <div class="container">
-    <!-- 头部品牌与控制台状态 -->
-    <header>
-      <div class="brand">
-        <div class="brand-logo">🚪</div>
-        <div>
-          <h1>MyHome 智能门禁控制中心</h1>
-          <p>LightPersonIDNet 超轻量纯净人体感知 + Home Assistant 多模态联动系统</p>
+  <div class="app-wrapper">
+    <!-- ==================== 左侧模块功能树导航栏 ==================== -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">🚪</div>
+        <div class="sidebar-brand-text">
+          <h1>MyHome AI</h1>
+          <p>智能门禁与多模态感知中枢</p>
         </div>
       </div>
 
-      <!-- 选项卡切换按钮 -->
-      <div class="nav-tabs">
-        <button class="nav-tab active" id="tabBtnTest" onclick="switchTab('test')">
-          <span>🧪 页面在线测试</span>
-        </button>
-        <button class="nav-tab" id="tabBtnData" onclick="switchTab('data')">
-          <span>👥 家庭成员数据管理</span>
-        </button>
-        <button class="nav-tab" id="tabBtnSystem" onclick="switchTab('system')">
-          <span>⚡ 系统状态与监控</span>
-        </button>
+      <nav class="sidebar-nav">
+        <!-- 分组 1: 门禁控制 -->
+        <div class="tree-group">
+          <div class="tree-group-title" title="点击折叠/展开">
+            <div class="group-title-left">
+              <span class="group-icon">🛡️</span>
+              <span class="group-text">门锁与安全</span>
+            </div>
+            <span class="group-arrow">▾</span>
+          </div>
+          <div class="tree-sub-items">
+            <a class="tree-item active" data-tab="lock">
+              <div class="tree-item-left">
+                <span class="tree-item-icon">🔐</span>
+                <span class="tree-item-label">门锁控制台</span>
+              </div>
+              <span class="tree-item-tag">智能互锁</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- 分组 2: AI 感知与核验 -->
+        <div class="tree-group">
+          <div class="tree-group-title" title="点击折叠/展开">
+            <div class="group-title-left">
+              <span class="group-icon">🧠</span>
+              <span class="group-text">智能感知与核验</span>
+            </div>
+            <span class="group-arrow">▾</span>
+          </div>
+          <div class="tree-sub-items">
+            <a class="tree-item" data-tab="test">
+              <div class="tree-item-left">
+                <span class="tree-item-icon">👁️</span>
+                <span class="tree-item-label">门前识别核验</span>
+              </div>
+            </a>
+            <a class="tree-item" data-tab="data">
+              <div class="tree-item-left">
+                <span class="tree-item-icon">👥</span>
+                <span class="tree-item-label">家庭成员管理</span>
+              </div>
+            </a>
+          </div>
+        </div>
+
+        <!-- 分组 3: 系统运维 (保留专业技术性描述) -->
+        <div class="tree-group">
+          <div class="tree-group-title" title="点击折叠/展开">
+            <div class="group-title-left">
+              <span class="group-icon">⚙️</span>
+              <span class="group-text">系统运维与监控</span>
+            </div>
+            <span class="group-arrow">▾</span>
+          </div>
+          <div class="tree-sub-items">
+            <a class="tree-item" data-tab="system">
+              <div class="tree-item-left">
+                <span class="tree-item-icon">⚡</span>
+                <span class="tree-item-label">服务架构与监控</span>
+              </div>
+              <span class="tree-item-tag" style="background: rgba(56, 189, 248, 0.15); color: var(--accent);">C++ 原生</span>
+            </a>
+          </div>
+        </div>
+      </nav>
+
+      <!-- 侧边栏底部硬件与运行状态 -->
+      <div class="sidebar-footer">
+        <div class="sidebar-status-badge">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="status-dot-indicator" id="sidebarDot"></span>
+            <span id="sidebarStatusText">待命就绪</span>
+          </div>
+          <span style="font-size: 11px; color: var(--accent); font-weight: 700;">智能守护中</span>
+        </div>
       </div>
 
-      <div class="status-group">
-        <div class="pill">
-          <span class="dot online" id="statusDot"></span>
-          <span id="serviceStatusText">服务正常</span>
+      <!-- 拖拽调整宽度分割手柄 -->
+      <div class="sidebar-resizer" id="sidebarResizer" title="按住拖拽调整侧边栏宽度，双击恢复默认"></div>
+    </aside>
+
+    <!-- ==================== 右侧主工作区 ==================== -->
+    <main class="main-content">
+      <!-- 顶部标题与实时状态栏 -->
+      <div class="top-bar">
+        <div class="top-bar-left">
+          <h2 class="page-title" id="pageTitle">门锁控制中心</h2>
+          <span class="page-subtitle" id="pageSubtitle">智能门锁状态监控 · 实体开关前后 5 秒智能互锁开门</span>
         </div>
-        <div class="pill">
-          <span id="presencePillText">自家人在场: 无</span>
-        </div>
-      </div>
-    </header>
-
-    <!-- ==================== TAB 1: 页面在线测试中心 ==================== -->
-    <div id="tabTest" class="tab-content active">
-      <div class="grid-2">
-        <!-- 左侧：图像上传与可视化标注 -->
-        <div class="card">
-          <div class="card-title">
-            <div class="title-left">
-              <span>📸</span>
-              <span>门前测试图像输入与 AI 感知标注</span>
-            </div>
-            <button class="btn btn-outline" style="padding: 6px 12px;" onclick="loadSamplePhoto()">加载示例门前照片</button>
+        <div class="top-bar-actions">
+          <div class="pill">
+            <span class="status-dot-indicator" id="statusDot"></span>
+            <span id="serviceStatusText">系统待命</span>
           </div>
-
-          <div class="upload-zone" id="uploadDropZone" onclick="document.getElementById('fileInput').click()">
-            <span class="upload-icon">📂</span>
-            <div style="font-weight: 700; font-size: 15px;">点击或拖拽照片至此进行模型纯净推理</div>
-            <div class="upload-hint">支持 JPG, PNG, WEBP 等格式，本地无需启动摄像头即可深度测试多姿态人体检测与身份识别</div>
-            <input type="file" id="fileInput" accept="image/*" style="display: none;" onchange="handleFileSelect(event)" />
-          </div>
-
-          <div class="preview-box" id="previewContainer">
-            <div class="preview-placeholder" id="previewPlaceholder">
-              <span style="font-size: 36px;">🖼️</span>
-              <span>上传照片后，此处将呈现高精度 Bounding Box 与置信度标注图</span>
-            </div>
-            <img id="annotatedImg" style="display: none;" alt="Annotated Output" />
-          </div>
-
-          <!-- 光耦继电器与硬件联动动画栏 -->
-          <div class="relay-banner">
-            <div class="relay-indicator">
-              <div class="relay-led" id="relayLed"></div>
-              <div>
-                <div style="font-weight: 700; font-size: 13px;" id="relayStatusTitle">ESP32-C6 光耦继电器：休眠 (OFF)</div>
-                <div style="font-size: 12px; color: var(--muted);" id="relayStatusDesc">检测通过时将触发 500ms 硬件闭环脉冲</div>
-              </div>
-            </div>
-            <button class="btn btn-primary" onclick="triggerRelayTest()">⚡ 点动模拟测试</button>
-          </div>
-        </div>
-
-        <!-- 右侧：纯净感知数据卡片与仿真触发 -->
-        <div>
-          <!-- 核心指标卡片 -->
-          <div class="card">
-            <div class="card-title">
-              <div class="title-left">
-                <span>📊</span>
-                <span>模型结构化纯净感知数据 (FrameSummary)</span>
-              </div>
-              <span class="badge badge-mode" id="latencyBadge">耗时: 0 ms</span>
-            </div>
-
-            <div class="grid-3" style="margin-bottom: 16px;">
-              <div class="metric-card">
-                <div class="metric-label">画面总人数</div>
-                <div class="metric-val" id="totalPersonsVal">0</div>
-                <div class="metric-sub">人体检测主体</div>
-              </div>
-              <div class="metric-card green">
-                <div class="metric-label">自家人数</div>
-                <div class="metric-val" id="familyCountVal" style="color: var(--success);">0</div>
-                <div class="metric-sub" id="familyMembersText">无识别名单</div>
-              </div>
-              <div class="metric-card red">
-                <div class="metric-label">陌生人数</div>
-                <div class="metric-val" id="strangerCountVal" style="color: var(--danger);">0</div>
-                <div class="metric-sub" id="strangerAlertText">安全未告警</div>
-              </div>
-            </div>
-
-            <!-- 主体明细卡片 -->
-            <div style="font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 8px;">各主体详细坐标与识别置信度：</div>
-            <div id="personsListContainer" style="max-height: 180px; overflow-y: auto;">
-              <div style="color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0;">暂无数据，请先上传照片测试</div>
-            </div>
-          </div>
-
-          <!-- 三种模式模拟触发面板 -->
-          <div class="card">
-            <div class="card-title">
-              <div class="title-left">
-                <span>🎛️</span>
-                <span>三种开门模式交互仿真测试</span>
-              </div>
-            </div>
-
-            <div class="sim-panel">
-              <!-- 方式 1 -->
-              <div class="sim-btn-card" onclick="simulateMode1()">
-                <div class="sim-icon">✌️</div>
-                <h4>方式 1: 人体 + 手势</h4>
-                <p>门前自家人匹配 + 比出 OK/胜利手势开门</p>
-              </div>
-
-              <!-- 方式 2 -->
-              <div class="sim-btn-card" onclick="simulateMode2()">
-                <div class="sim-icon">🔘</div>
-                <h4>方式 2: 人体 + 智能开关</h4>
-                <p>按门厅实体开关 + C++ 前后 N 秒互锁统一裁决开门</p>
-              </div>
-
-              <!-- 方式 3 -->
-              <div class="sim-btn-card" onclick="simulateMode3()">
-                <div class="sim-icon">🎙️</div>
-                <h4>方式 3: 声音核验</h4>
-                <p>声纹比对 + 口令内容识别 (已保留接口)</p>
-              </div>
-            </div>
-
-            <!-- 自家人在场窗口状态 -->
-            <div style="margin-top: 14px; padding: 12px; background: #0c121c; border-radius: 8px; border: 1px solid #1c2738; font-size: 13px;">
-              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span style="color: var(--muted);" id="presenceWindowLabel">门前自家人互锁有效期：</span>
-                <strong id="presenceWindowTimer">未激活 (0s)</strong>
-              </div>
-              <div style="font-size: 12px; color: var(--muted);" id="presenceWindowDesc">
-                💡 机制说明：C++ 统一控制开门信号。收到按开关时间点的前后 5 秒内（可在 config.yaml 的 switch_face_window_sec 中配置）人脸识别成功即直接判定开门！
-              </div>
-            </div>
+          <div class="pill">
+            <span id="presencePillText">自家人在场: 无</span>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- ==================== TAB 2: 方案 A 模型成员与训练数据中心 ==================== -->
-    <div id="tabData" class="tab-content">
-      <div class="card">
-        <div class="card-title">
-          <div class="title-left">
-            <span>🧠</span>
-            <span>方案 A 模型已学成成员与训练集中心 (端到端分类，0照片依赖)</span>
-          </div>
-          <div style="display: flex; gap: 10px;">
-            <button class="btn btn-outline" onclick="reloadDbFeatures()">🔄 重新载入模型权重</button>
-            <button class="btn btn-primary" onclick="openUploadModal()">➕ 上传新训练样本</button>
+      <!-- ============================================================
+           模块 1: 门锁管理中枢 (Tab: lock)
+           ============================================================ -->
+      <section id="tab_lock" class="tab-content active">
+        <!-- 门锁状态全景 Hero 面板 -->
+        <div class="lock-hero-card">
+          <div class="lock-hero-body">
+            <div class="lock-status-area">
+              <div class="lock-dial" id="lockDial">
+                <span id="lockDialIcon">🔒</span>
+              </div>
+              <div class="lock-title-group">
+                <h2>
+                  <span id="lockStatusTitle">智能门锁：已锁闭 (安全防护中)</span>
+                  <span class="badge badge-family" id="lockSecureBadge">防御就绪</span>
+                </h2>
+                <p id="lockRelayDesc">门锁电控状态：安全闭锁 · 配备自动复位防夹防过热保护</p>
+              </div>
+            </div>
+
+            <!-- 控制按钮组 -->
+            <div class="lock-controls-grid">
+              <button class="btn-lock-emergency" id="btnLockEmergency">
+                <span>⚡ 一键应急开门</span>
+              </button>
+              <button class="btn-lock-action" id="btnLockSwitch">
+                <span>🔘 门厅开关开门 (模拟按键)</span>
+              </button>
+              <button class="btn-lock-action" id="btnWakeupVerify">
+                <span>📡 唤醒感知核验</span>
+              </button>
+              <button class="btn-lock-action" id="btnLockStop">
+                <span>⏹️ 强制休眠</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        <div style="margin-bottom: 18px; padding: 14px 18px; background: rgba(56, 189, 248, 0.08); border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.2); font-size: 13px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <!-- 2x2 / 4 列指标栅格 -->
+        <div class="grid-4" style="margin-bottom: 22px;">
+          <div class="metric-tile">
+            <span class="tile-label">累计成功开锁次数</span>
+            <div class="tile-value" id="lockMetricUnlockCount" style="color: var(--success);">0 <span style="font-size: 13px; font-weight: normal; color: var(--muted);">次</span></div>
+            <span class="tile-sub">开门闭环事件已安全审计归档</span>
+          </div>
+          <div class="metric-tile">
+            <span class="tile-label">智能开关互锁窗口期</span>
+            <div class="tile-value" id="lockMetricWindowSec" style="color: var(--accent);">5.0 <span style="font-size: 13px; font-weight: normal; color: var(--muted);">秒</span></div>
+            <span class="tile-sub">前后 5 秒内识别到自家人自动开锁</span>
+          </div>
+          <div class="metric-tile">
+            <span class="tile-label">开锁动作时长</span>
+            <div class="tile-value" style="color: var(--purple);">500 <span style="font-size: 13px; font-weight: normal; color: var(--muted);">ms</span></div>
+            <span class="tile-sub">自动复位闭锁，防止门锁线圈过热</span>
+          </div>
+          <div class="metric-tile">
+            <span class="tile-label">防重触发冷却保护</span>
+            <div class="tile-value" style="color: var(--warning);">10.0 <span style="font-size: 13px; font-weight: normal; color: var(--muted);">秒</span></div>
+            <span class="tile-sub">安全防抖保护，过滤频繁误按</span>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- 左侧：门锁安全策略与互锁机制 -->
           <div>
-            <strong>认证运行模式:</strong> <span style="color: var(--accent); font-weight: 700;">方案 A（端到端深度分类）</span>
-            <span style="color: var(--muted); margin-left: 12px;">家庭成员身份特征已完全固化在神经网络权重中，硬盘 0 原始照片依赖，具备极强抗换衣、抗逆光、抗姿态变化容错能力！</span>
+            <div class="card">
+              <div class="card-title">
+                <div class="title-left">
+                  <span>🛡️</span>
+                  <span>智能开锁策略与互锁规则</span>
+                </div>
+                <span class="badge badge-family">智能双向互锁</span>
+              </div>
+
+              <!-- 策略 1: 智能开关互锁 -->
+              <div class="policy-box">
+                <div class="policy-header">
+                  <div class="policy-title">
+                    <span>🔘</span>
+                    <span>策略 1：自家人识别 + 门厅实体开关</span>
+                  </div>
+                  <span class="badge badge-family">主推互锁模式</span>
+                </div>
+                <div class="policy-desc">
+                  不论是<strong>“先按开关、后识别人脸”</strong>还是<strong>“先识别人脸、后按开关”</strong>，只要在开关动作前后 <span id="policyWindowSecText" style="color: var(--accent); font-weight: 700;">5</span> 秒内完成自家人核验，门锁即刻安全打开。
+                </div>
+                <div class="policy-status-pill">
+                  <span style="color: var(--muted);">当前开关互锁状态：</span>
+                  <span id="lockPresenceStatus" style="font-weight: 700; color: var(--muted);">待命中 (无自家人)</span>
+                </div>
+              </div>
+
+              <!-- 策略 2: 人体 + 手势 -->
+              <div class="policy-box">
+                <div class="policy-header">
+                  <div class="policy-title">
+                    <span>✌️</span>
+                    <span>策略 2：自家人识别 + 专属手势</span>
+                  </div>
+                  <span class="badge badge-mode">动作核验</span>
+                </div>
+                <div class="policy-desc">
+                  当自家人站在门前时，面向摄像头比出 <strong>OK 手势</strong> 或 <strong>胜利手势 (V)</strong>，连续确认识别后自动开锁。
+                </div>
+                <div style="margin-top: 8px; font-size: 12px; color: var(--muted);">
+                  门前站立自家人面向摄像头比出手势，多帧确认后自动开门，防误触防假阳。
+                </div>
+              </div>
+
+              <!-- 策略 3: 声音核验 -->
+              <div class="policy-box">
+                <div class="policy-header">
+                  <div class="policy-title">
+                    <span>🎙️</span>
+                    <span>策略 3：语音核验与通行口令</span>
+                  </div>
+                  <span class="badge badge-warning">预留能力</span>
+                </div>
+                <div class="policy-desc">
+                  支持声纹识别与通行口令联动开门，功能就绪后即可在控制台启用。
+                </div>
+              </div>
+            </div>
+
+            <!-- 硬件链路卡片 -->
+            <div class="card">
+              <div class="card-title">
+                <div class="title-left">
+                  <span>🔗</span>
+                  <span>智能家居与开门联动说明</span>
+                </div>
+              </div>
+              <table>
+                <tbody>
+                  <tr>
+                    <td style="color: var(--muted); width: 180px;">门锁执行机构</td>
+                    <td><strong>智能门锁电控执行器 (光耦物理隔离，安全防冲击)</strong></td>
+                  </tr>
+                  <tr>
+                    <td style="color: var(--muted);">智能家居中枢联动</td>
+                    <td><code>Home Assistant 门锁自动化联动服务</code></td>
+                  </tr>
+                  <tr>
+                    <td style="color: var(--muted);">门厅人体存在传感器</td>
+                    <td>门厅微波人体存在传感器 (毫秒级靠近感知唤醒)</td>
+                  </tr>
+                  <tr>
+                    <td style="color: var(--muted);">安全阻断与自愈保护</td>
+                    <td>开门指令触发后自动复位闭锁，全方位保障用电安全</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-          <span class="badge badge-family" id="quotaBadge">模型已固化 3 位成员</span>
-        </div>
 
-        <!-- 成员卡片网格列表 -->
-        <div class="members-grid" id="membersGrid">
-          <!-- 动态渲染 -->
-        </div>
-      </div>
-    </div>
+          <!-- 右侧：最近开锁全景卡片与开门流水表 -->
+          <div>
+            <div class="card">
+              <div class="card-title">
+                <div class="title-left">
+                  <span>🔑</span>
+                  <span>最近一次开门事件全景详情</span>
+                </div>
+                <span class="badge badge-family" id="lockLastPassedBadge">无历史记录</span>
+              </div>
+              <div class="showcase-row">
+                <div class="showcase-item">
+                  <div class="item-label">核验身份人员</div>
+                  <div class="item-val" style="color: var(--accent);" id="lockLastPerson">-</div>
+                </div>
+                <div class="showcase-item">
+                  <div class="item-label">认证模式</div>
+                  <div class="item-val" id="lockLastMode">-</div>
+                </div>
+                <div class="showcase-item">
+                  <div class="item-label">动作触发标识</div>
+                  <div class="item-val" style="color: var(--purple);" id="lockLastAction">-</div>
+                </div>
+                <div class="showcase-item">
+                  <div class="item-label">开门发生时间</div>
+                  <div class="item-val" style="color: var(--muted);" id="lockLastTime">-</div>
+                </div>
+              </div>
+            </div>
 
-    <!-- ==================== TAB 3: 系统状态与监控 ==================== -->
-    <div id="tabSystem" class="tab-content">
-      <div class="grid-2">
+            <!-- 专属开门流水表 -->
+            <div class="card">
+              <div class="card-title">
+                <div class="title-left">
+                  <span>📜</span>
+                  <span>门锁开锁安全审计流水</span>
+                </div>
+              </div>
+              <div class="table-container" style="max-height: 420px; overflow-y: auto;">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>开门时间</th>
+                      <th>人员</th>
+                      <th>认证模式</th>
+                      <th>触发动作</th>
+                      <th>耗时</th>
+                      <th>执行状态</th>
+                    </tr>
+                  </thead>
+                  <tbody id="lockHistoryTableBody">
+                    <tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">暂无开门流水记录</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           模块 2: 视觉核验与仿真测试 (Tab: test)
+           ============================================================ -->
+      <section id="tab_test" class="tab-content">
+        <div class="grid-2">
+          <!-- 左侧：图像上传与标注预览 -->
+          <div class="card">
+            <div class="card-title">
+              <div class="title-left">
+                <span>📸</span>
+                <span>门前照片测试与人员识别</span>
+              </div>
+              <button class="btn btn-outline" style="padding: 6px 12px;" id="btnLoadSample">加载示例门前照片</button>
+            </div>
+
+            <div class="upload-zone" id="uploadDropZone" onclick="document.getElementById('fileInput').click()">
+              <span class="upload-icon">📂</span>
+              <div style="font-weight: 700; font-size: 15px;">点击或拖拽门前照片至此体验识别效果</div>
+              <div class="upload-hint">支持 JPG, PNG, WEBP 格式，自动识别门前人员并匹配家庭成员档案</div>
+              <input type="file" id="fileInput" accept="image/*" style="display: none;" />
+            </div>
+
+            <div class="preview-box">
+              <div class="preview-placeholder" id="previewPlaceholder">
+                <span style="font-size: 36px;">🖼️</span>
+                <span>上传照片后，此处将呈现画面中的人员位置与识别标识</span>
+              </div>
+              <img id="annotatedImg" style="display: none;" alt="Annotated Output" />
+            </div>
+
+            <!-- 光耦继电器动画条 -->
+            <div class="relay-banner">
+              <div class="relay-indicator">
+                <div class="relay-led" id="relayLed"></div>
+                <div>
+                  <div style="font-weight: 700; font-size: 13px;" id="relayStatusTitle">门锁电控状态：安全闭锁 (待命)</div>
+                  <div style="font-size: 12px; color: var(--muted);" id="relayStatusDesc">核验通过时将触发自动开锁</div>
+                </div>
+              </div>
+              <button class="btn btn-primary" id="btnTriggerRelay">⚡ 模拟开门测试</button>
+            </div>
+          </div>
+
+          <!-- 右侧：纯净感知数据与仿真测试 -->
+          <div>
+            <div class="card">
+              <div class="card-title">
+                <div class="title-left">
+                  <span>📊</span>
+                  <span>门前感知与识别明细</span>
+                </div>
+                <span class="badge badge-mode" id="latencyBadge">识别耗时: 0 ms</span>
+              </div>
+
+              <div class="grid-3" style="margin-bottom: 16px;">
+                <div class="metric-tile">
+                  <span class="tile-label">画面总人数</span>
+                  <div class="tile-value" id="totalPersonsVal">0</div>
+                </div>
+                <div class="metric-tile">
+                  <span class="tile-label">自家人数</span>
+                  <div class="tile-value" id="familyCountVal" style="color: var(--success);">0</div>
+                </div>
+                <div class="metric-tile">
+                  <span class="tile-label">陌生人数</span>
+                  <div class="tile-value" id="strangerCountVal" style="color: var(--danger);">0</div>
+                </div>
+              </div>
+
+              <div style="font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 8px;">检测到的人员与识别详情：</div>
+              <div id="personsListContainer" style="max-height: 180px; overflow-y: auto;">
+                <div style="color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0;">暂无数据，请先上传照片测试</div>
+              </div>
+            </div>
+
+            <!-- 三模式仿真交互 -->
+            <div class="card">
+              <div class="card-title">
+                <div class="title-left">
+                  <span>🎛️</span>
+                  <span>三种开门方式体验</span>
+                </div>
+              </div>
+
+              <div class="sim-panel">
+                <div class="sim-btn-card" id="btnSimMode1">
+                  <div class="sim-icon">✌️</div>
+                  <h4>方式 1: 人体 + 手势</h4>
+                  <p>门前自家人匹配 + 比出 OK/胜利手势开门</p>
+                </div>
+                <div class="sim-btn-card" id="btnSimMode2">
+                  <div class="sim-icon">🔘</div>
+                  <h4>方式 2: 人体 + 智能开关</h4>
+                  <p>按门厅开关 + 前后 5 秒内识别到自家人即开门</p>
+                </div>
+                <div class="sim-btn-card" id="btnSimMode3">
+                  <div class="sim-icon">🎙️</div>
+                  <h4>方式 3: 声音核验</h4>
+                  <p>声纹比对 + 口令内容识别 (已保留接口)</p>
+                </div>
+              </div>
+
+              <div style="margin-top: 14px; padding: 12px; background: #0c121c; border-radius: 8px; border: 1px solid #1c2738; font-size: 13px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                  <span style="color: var(--muted);">门前自家人在场有效期：</span>
+                  <strong id="presenceWindowTimer">未激活 (0s)</strong>
+                </div>
+                <div style="font-size: 12px; color: var(--muted);" id="presenceWindowDesc">
+                  💡 互锁说明：在按下开关前后 5 秒内识别到自家人，系统即刻确认开门！
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           模块 3: 家庭成员数据中心 (Tab: data)
+           ============================================================ -->
+      <section id="tab_data" class="tab-content">
         <div class="card">
           <div class="card-title">
             <div class="title-left">
-              <span>⚙️</span>
-              <span>系统核心参数与架构状态</span>
+              <span>👥</span>
+              <span>家庭成员档案中心 (高隐私保护，零照片留存)</span>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button class="btn btn-outline" id="btnReloadDb">🔄 刷新成员列表</button>
+              <button class="btn btn-primary" id="btnOpenUploadModal">➕ 录入新家庭成员</button>
             </div>
           </div>
-          <table style="margin-top: 8px;">
-            <tbody>
-              <tr><td style="color: var(--muted); width: 180px;">服务架构</td><td><strong>C++17 高性能 HTTP 核心 + PyTorch MPS 加速微服务</strong></td></tr>
-              <tr><td style="color: var(--muted);">识别模型</td><td><strong style="color: var(--accent);">LightPersonIDNet (MobileNetV3 + GeM Pooling, 512-dim)</strong></td></tr>
-              <tr><td style="color: var(--muted);">前置检测</td><td>轻量人体主体对齐检测器 (YuNet/HOG 混合加速)</td></tr>
-              <tr><td style="color: var(--muted);">支持认证模式</td><td>
-                <span class="badge badge-mode">人体 + 手势</span>
-                <span class="badge badge-mode">人体 + 智能开关</span>
-                <span class="badge badge-mode">声音 (预留)</span>
-              </td></tr>
-              <tr><td style="color: var(--muted);">Home Assistant Webhook</td><td><code>/api/webhook/ai_door_unlock_event</code></td></tr>
-              <tr><td style="color: var(--muted);">硬件输出</td><td>ESP32-C6 GPIO 脉冲 500ms (自恢复断开，防线圈过热)</td></tr>
-              <tr><td style="color: var(--muted);">累计成功开门次数</td><td><strong id="unlockCountVal" style="color: var(--success); font-size: 18px;">0</strong> 次</td></tr>
-            </tbody>
-          </table>
-        </div>
 
-        <div class="card">
-          <div class="card-title">
-            <div class="title-left">
-              <span>📋</span>
-              <span>近期开门与核验事件流日志</span>
+          <div style="margin-bottom: 18px; padding: 14px 18px; background: rgba(56, 189, 248, 0.08); border-radius: 12px; border: 1px solid rgba(56, 189, 248, 0.2); font-size: 13px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <strong>隐私保护机制:</strong> <span style="color: var(--accent); font-weight: 700;">端侧特征加密保护</span>
+              <span style="color: var(--muted); margin-left: 12px;">成员身份特征经过安全提取与固化，本地不存储任何原始面部照片，同时具备极强抗换衣、抗逆光识别能力。</span>
             </div>
-            <button class="btn btn-outline" style="padding: 4px 10px; font-size: 12px;" onclick="fetchStatus()">刷新</button>
+            <span class="badge badge-family" id="quotaBadge">已录入 0 位家庭成员</span>
           </div>
-          <div class="table-container">
+
+          <div class="members-grid" id="membersGrid"></div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           模块 4: 系统核心状态与运维监控 (Tab: system)
+           ============================================================ -->
+      <section id="tab_system" class="tab-content">
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">
+              <div class="title-left">
+                <span>⚙️</span>
+                <span>系统核心参数与架构状态</span>
+              </div>
+            </div>
             <table>
-              <thead>
-                <tr>
-                  <th>时间</th>
-                  <th>人物</th>
-                  <th>模式</th>
-                  <th>动作/触发</th>
-                  <th>耗时</th>
-                  <th>状态</th>
-                </tr>
-              </thead>
-              <tbody id="historyTableBody">
-                <tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">暂无历史记录</td></tr>
+              <tbody>
+                <tr><td style="color: var(--muted); width: 180px;">服务架构</td><td><strong>C++17 高性能 HTTP 核心 + PyTorch MPS 加速微服务</strong></td></tr>
+                <tr><td style="color: var(--muted);">识别模型</td><td><strong style="color: var(--accent);">LightPersonIDNet (MobileNetV3 + GeM Pooling, 512-dim)</strong></td></tr>
+                <tr><td style="color: var(--muted);">前置检测</td><td>轻量人体主体对齐检测器 (YuNet/HOG 混合加速)</td></tr>
+                <tr><td style="color: var(--muted);">支持认证模式</td><td>
+                  <span class="badge badge-mode">人体 + 手势</span>
+                  <span class="badge badge-mode">人体 + 智能开关</span>
+                  <span class="badge badge-mode">声音 (预留)</span>
+                </td></tr>
+                <tr><td style="color: var(--muted);">Home Assistant Webhook</td><td><code>/api/webhook/ai_door_unlock_event</code></td></tr>
+                <tr><td style="color: var(--muted);">硬件输出</td><td>ESP32-C6 GPIO 脉冲 500ms (自恢复断开，防线圈过热)</td></tr>
+                <tr><td style="color: var(--muted);">累计成功开门次数</td><td><strong id="unlockCountVal" style="color: var(--success); font-size: 18px;">0</strong> 次</td></tr>
               </tbody>
             </table>
           </div>
+
+          <div class="card">
+            <div class="card-title">
+              <div class="title-left">
+                <span>📋</span>
+                <span>近期开门与核验事件流日志</span>
+              </div>
+              <button class="btn btn-outline" style="padding: 4px 10px; font-size: 12px;" id="btnRefreshSystem">刷新日志</button>
+            </div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>时间</th>
+                    <th>人物</th>
+                    <th>模式</th>
+                    <th>动作/触发</th>
+                    <th>耗时</th>
+                    <th>状态</th>
+                  </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                  <tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">暂无历史记录</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   </div>
 
   <!-- 上传照片/添加成员 模态弹窗 -->
@@ -892,7 +551,7 @@
     <div class="modal-card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
         <h3 style="font-size: 16px; font-weight: 700;">➕ 添加家庭成员照片</h3>
-        <button onclick="closeUploadModal()" style="background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer;">✕</button>
+        <button id="btnCloseUploadModal" style="background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer;">✕</button>
       </div>
 
       <div class="form-group">
@@ -902,466 +561,24 @@
 
       <div class="form-group">
         <label>选择照片文件 (建议包含全身/侧颜/正面自然姿态)</label>
-        <input type="file" id="modalPhotoInput" accept="image/*" class="form-control" onchange="previewModalPhoto(event)" />
+        <input type="file" id="modalPhotoInput" accept="image/*" class="form-control" />
       </div>
 
       <div style="text-align: center; margin-bottom: 18px; display: none;" id="modalPreviewBox">
-        <img id="modalPreviewImg" style="max-height: 140px; border-radius: 8px; border: 1px solid #28374d;" />
+        <img id="modalPreviewImg" style="max-height: 140px; border-radius: 8px; border: 1px solid #28374d;" alt="Preview" />
       </div>
 
       <div style="display: flex; justify-content: flex-end; gap: 10px;">
-        <button class="btn btn-outline" onclick="closeUploadModal()">取消</button>
-        <button class="btn btn-primary" onclick="submitUploadPhoto()">确认上传并热更新特征</button>
+        <button class="btn btn-outline" id="btnCancelUploadModal">取消</button>
+        <button class="btn btn-primary" id="btnSubmitUploadPhoto">确认上传并热更新特征</button>
       </div>
     </div>
   </div>
 
-  <!-- 全局 Toast 提示 -->
+  <!-- 全局 Toast 提示容器 -->
   <div id="toast">操作成功</div>
 
-  <script>
-    let activeTab = 'test';
-    let currentTestBase64 = null;
-    let modalSelectedBase64 = null;
-    let presenceTimerInterval = null;
-    let presenceEndTime = 0;
-
-    function showToast(msg) {
-      const t = document.getElementById('toast');
-      t.innerText = msg;
-      t.classList.add('show');
-      setTimeout(() => t.classList.remove('show'), 2800);
-    }
-
-    function switchTab(tab) {
-      activeTab = tab;
-      document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-
-      if (tab === 'test') {
-        document.getElementById('tabBtnTest').classList.add('active');
-        document.getElementById('tabTest').classList.add('active');
-      } else if (tab === 'data') {
-        document.getElementById('tabBtnData').classList.add('active');
-        document.getElementById('tabData').classList.add('active');
-        loadMembersData();
-      } else if (tab === 'system') {
-        document.getElementById('tabBtnSystem').classList.add('active');
-        document.getElementById('tabSystem').classList.add('active');
-        fetchStatus();
-      }
-    }
-
-    // 处理文件拖拽与上传
-    const dropZone = document.getElementById('uploadDropZone');
-    dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropZone.classList.add('dragover');
-    });
-    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('dragover');
-      if (e.dataTransfer.files.length > 0) {
-        processTestFile(e.dataTransfer.files[0]);
-      }
-    });
-
-    function handleFileSelect(e) {
-      if (e.target.files.length > 0) {
-        processTestFile(e.target.files[0]);
-      }
-    }
-
-    function processTestFile(file) {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        currentTestBase64 = e.target.result;
-        runInference(currentTestBase64);
-      };
-      reader.readAsDataURL(file);
-    }
-
-    // 执行纯净推理
-    async function runInference(b64) {
-      showToast("正在通过 LightPersonIDNet 进行纯净推理...");
-      try {
-        const resp = await fetch('/api/test_image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: b64 })
-        });
-        const res = await resp.json();
-        renderInferenceResult(res);
-      } catch (err) {
-        showToast("推理请求失败: " + err);
-      }
-    }
-
-    function renderInferenceResult(res) {
-      document.getElementById('totalPersonsVal').innerText = res.total_persons || 0;
-      document.getElementById('familyCountVal').innerText = res.family_count || 0;
-      document.getElementById('strangerCountVal').innerText = res.stranger_count || 0;
-      document.getElementById('latencyBadge').innerText = '耗时: ' + (res.latency_ms || 0) + ' ms';
-
-      const familyNames = res.family_members && res.family_members.length > 0
-        ? res.family_members.join(', ')
-        : '无识别名单';
-      document.getElementById('familyMembersText').innerText = familyNames;
-
-      document.getElementById('strangerAlertText').innerText = (res.stranger_count > 0) ? '⚠️ 存在陌生人' : '安全未告警';
-      document.getElementById('strangerAlertText').style.color = (res.stranger_count > 0) ? 'var(--danger)' : 'var(--muted)';
-
-      // 渲染标注图
-      if (res.annotated_image) {
-        const img = document.getElementById('annotatedImg');
-        img.src = res.annotated_image;
-        img.style.display = 'block';
-        document.getElementById('previewPlaceholder').style.display = 'none';
-      }
-
-      // 渲染主体明细列表
-      const listContainer = document.getElementById('personsListContainer');
-      listContainer.innerHTML = '';
-      if (!res.persons || res.persons.length === 0) {
-        listContainer.innerHTML = '<div style="color: var(--muted); font-size: 13px; text-align: center; padding: 15px 0;">画面未捕获到人体主体</div>';
-      } else {
-        res.persons.forEach((p, idx) => {
-          const item = document.createElement('div');
-          item.className = 'person-item';
-          const badgeClass = p.is_family ? 'badge-family' : 'badge-stranger';
-          const statusText = p.status || '主体';
-          item.innerHTML = `
-            <div class="person-info">
-              <div class="person-avatar">${p.is_family ? '🟢' : '🔴'}</div>
-              <div>
-                <div class="person-name">#${idx + 1} ${p.name} <span class="badge ${badgeClass}" style="margin-left: 6px;">${p.is_family ? '自家人' : '陌生人'}</span></div>
-                <div class="person-status">姿态: ${statusText} | 耗时: ${p.latency_ms || 0}ms</div>
-              </div>
-            </div>
-            <div style="text-align: right;">
-              <strong style="font-size: 15px; color: ${p.is_family ? 'var(--success)' : 'var(--danger)'};">${(p.score * 100).toFixed(1)}%</strong>
-              <div style="font-size: 11px; color: var(--muted);">相似度得分</div>
-            </div>
-          `;
-          listContainer.appendChild(item);
-        });
-      }
-
-      // 如果有自家人，刷新自家人在场倒计时
-      if (res.family_count > 0) {
-        startPresenceCountdown(currentSwitchWindowSec, familyNames);
-      }
-    }
-
-    let currentSwitchWindowSec = 5.0;
-
-    function startPresenceCountdown(sec, name) {
-      presenceEndTime = Date.now() + sec * 1000;
-      document.getElementById('presencePillText').innerText = '自家人在场: ' + name;
-      document.getElementById('presencePillText').style.color = 'var(--success)';
-
-      if (presenceTimerInterval) clearInterval(presenceTimerInterval);
-      presenceTimerInterval = setInterval(() => {
-        const rem = Math.max(0, Math.round((presenceEndTime - Date.now()) / 1000));
-        if (rem > 0) {
-          document.getElementById('presenceWindowTimer').innerText = `有效 (${rem}s) [${name}]`;
-          document.getElementById('presenceWindowTimer').style.color = 'var(--success)';
-        } else {
-          document.getElementById('presenceWindowTimer').innerText = '未激活 (0s)';
-          document.getElementById('presenceWindowTimer').style.color = 'var(--muted)';
-          document.getElementById('presencePillText').innerText = '自家人在场: 无';
-          document.getElementById('presencePillText').style.color = 'var(--text)';
-          clearInterval(presenceTimerInterval);
-        }
-      }, 500);
-    }
-
-    // 触发硬件光耦脉冲模拟
-    async function triggerRelayTest() {
-      showToast("正在发送 ESP32-C6 500ms 光耦点动脉冲...");
-      animateRelayLed();
-      try {
-        const resp = await fetch('/api/test_relay', { method: 'POST' });
-        const res = await resp.json();
-        showToast("已成功触发继电器点动模拟！");
-      } catch (err) {
-        showToast("继电器测试失败: " + err);
-      }
-    }
-
-    function animateRelayLed() {
-      const led = document.getElementById('relayLed');
-      const title = document.getElementById('relayStatusTitle');
-      const desc = document.getElementById('relayStatusDesc');
-      led.classList.add('active');
-      title.innerText = 'ESP32-C6 光耦继电器：已导通 (ON 500ms)';
-      title.style.color = 'var(--success)';
-      desc.innerText = 'GPIO 瞬间拉高，光耦导通驱动门锁开门信号';
-
-      setTimeout(() => {
-        led.classList.remove('active');
-        title.innerText = 'ESP32-C6 光耦继电器：已自动断开 (OFF)';
-        title.style.color = 'var(--text)';
-        desc.innerText = '已恢复断开常开状态，防线圈过热';
-      }, 500);
-    }
-
-    // 仿真模式 1: 人体 + 手势
-    async function simulateMode1() {
-      showToast("仿真方式 1: 人体 + 手势 (向服务请求核验)...");
-      try {
-        const resp = await fetch('/api/verify', { method: 'POST' });
-        const res = await resp.json();
-        if (res.passed) {
-          animateRelayLed();
-          showToast(`✅ 核验通过！[${res.person} + ${res.gesture || 'OK'}] 已触发开门`);
-        } else {
-          showToast("未检测到有效自家人与手势");
-        }
-        fetchStatus();
-      } catch (err) {
-        showToast("请求异常: " + err);
-      }
-    }
-
-    // 仿真模式 2: 人体 + 智能开关
-    async function simulateMode2() {
-      showToast("仿真方式 2: 按下门厅智能开关，请求 C++ 统一裁决开门...");
-      try {
-        const resp = await fetch('/api/switch_trigger', { method: 'POST' });
-        const res = await resp.json();
-        if (res.passed) {
-          animateRelayLed();
-          showToast(`🎉 成功触发！开关前后 ${res.window_sec || currentSwitchWindowSec}s 互锁有效，直接开门 (${res.person})`);
-        } else {
-          showToast(`⏳ ${res.message}`);
-        }
-        fetchStatus();
-      } catch (err) {
-        showToast("开关触发异常: " + err);
-      }
-    }
-
-    // 仿真模式 3: 声音核验 (预留)
-    async function simulateMode3() {
-      try {
-        const resp = await fetch('/api/verify_voice', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ audio: "dummy", text: "芝麻开门" })
-        });
-        const res = await resp.json();
-        showToast("ℹ️ 提示: " + res.message);
-      } catch (err) {
-        showToast("声音请求异常: " + err);
-      }
-    }
-
-    // 加载示例门前照片
-    async function loadSamplePhoto() {
-      showToast("加载示例门前照片中...");
-      try {
-        // 请求爸爸底库照片做测试
-        const resp = await fetch('/api/photo?file=爸爸_1.jpg');
-        if (resp.ok) {
-          const blob = await resp.blob();
-          const reader = new FileReader();
-          reader.onload = function(e) {
-            currentTestBase64 = e.target.result;
-            runInference(currentTestBase64);
-          };
-          reader.readAsDataURL(blob);
-        } else {
-          showToast("未能加载到示例照片");
-        }
-      } catch (err) {
-        showToast("加载示例照片失败: " + err);
-      }
-    }
-
-    // ==================== 数据管理中心逻辑 ====================
-    async function loadMembersData() {
-      try {
-        const resp = await fetch('/api/members');
-        const data = await resp.json();
-        renderMembersGrid(data);
-      } catch (err) {
-        showToast("加载成员底库失败: " + err);
-      }
-    }
-
-    function renderMembersGrid(data) {
-      const grid = document.getElementById('membersGrid');
-      grid.innerHTML = '';
-      const total = data.total_members || (data.classes ? data.classes.length : 0);
-      document.getElementById('quotaBadge').innerText = `模型已固化 ${total} 位成员`;
-
-      if (!data.members || data.members.length === 0) {
-        grid.innerHTML = '<div style="color: var(--muted); grid-column: 1/-1; text-align: center; padding: 40px;">暂无成员数据</div>';
-        return;
-      }
-
-      data.members.forEach(m => {
-        const card = document.createElement('div');
-        card.className = 'member-card';
-
-        const sampleCount = m.sample_count || 0;
-        const statusText = m.status || '已内化至模型权重 (0 照片存储)';
-
-        card.innerHTML = `
-          <div class="member-card-header">
-            <div class="member-name-tag">
-              <span>👤</span>
-              <span>${m.name}</span>
-            </div>
-            <span class="badge badge-family">方案 A 深度模型固化</span>
-          </div>
-          <div style="font-size: 13px; color: var(--text); margin-bottom: 8px;">
-            <strong>识别方式:</strong> <span style="color: var(--accent);">端到端神经网络分类 (0 照片依赖)</span>
-          </div>
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 6px;">
-            <strong>训练集样本:</strong> ${sampleCount} 张不同衣着/角度切片
-          </div>
-          <div style="font-size: 12px; color: var(--muted); margin-bottom: 14px;">
-            <strong>容错特性:</strong> 换装抗扰极高 · 复杂逆光适应 · 隐私保护 100%
-          </div>
-          <div style="display: flex; gap: 8px;">
-            <button class="btn btn-outline" style="padding: 6px 12px; font-size: 12px; flex: 1;" onclick="openUploadForMember('${m.name}')">➕ 添加该成员训练样本</button>
-          </div>
-        `;
-        grid.appendChild(card);
-      });
-    }
-
-    function openUploadForMember(name) {
-      document.getElementById('modalMemberName').value = name;
-      document.getElementById('modalPhotoInput').value = '';
-      document.getElementById('modalPreviewBox').style.display = 'none';
-      modalSelectedBase64 = null;
-      document.getElementById('uploadModal').classList.add('open');
-    }
-
-    async function deleteMemberPhoto(filename) {
-      showToast("方案 A 无需维护单独照片底库，所有特征均已内化至模型权重中。");
-    }
-
-    async function reloadDbFeatures() {
-      showToast("正在重新载入最新模型权重与分类头...");
-      try {
-        const resp = await fetch('/api/reload', { method: 'POST' });
-        const res = await resp.json();
-        showToast("✅ 模型权重已重新载入！");
-        loadMembersData();
-      } catch (err) {
-        showToast("重载失败: " + err);
-      }
-    }
-
-    function openUploadModal() {
-      document.getElementById('modalMemberName').value = '';
-      document.getElementById('modalPhotoInput').value = '';
-      document.getElementById('modalPreviewBox').style.display = 'none';
-      modalSelectedBase64 = null;
-      document.getElementById('uploadModal').classList.add('open');
-    }
-
-    function closeUploadModal() {
-      document.getElementById('uploadModal').classList.remove('open');
-    }
-
-    function previewModalPhoto(e) {
-      if (e.target.files.length > 0) {
-        const reader = new FileReader();
-        reader.onload = function(evt) {
-          modalSelectedBase64 = evt.target.result;
-          document.getElementById('modalPreviewImg').src = modalSelectedBase64;
-          document.getElementById('modalPreviewBox').style.display = 'block';
-        };
-        reader.readAsDataURL(e.target.files[0]);
-      }
-    }
-
-    async function submitUploadPhoto() {
-      const name = document.getElementById('modalMemberName').value.trim();
-      if (!name) {
-        alert("请输入成员姓名！");
-        return;
-      }
-      if (!modalSelectedBase64) {
-        alert("请选择照片文件！");
-        return;
-      }
-
-      showToast("正在上传照片并重建 512 维特征原型...");
-      try {
-        const resp = await fetch('/api/upload_photo', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: name, image: modalSelectedBase64 })
-        });
-        const res = await resp.json();
-        if (res.status === 'ok') {
-          showToast(`✅ 成功为【${name}】添加照片！底库已更新`);
-          closeUploadModal();
-          loadMembersData();
-        } else {
-          showToast("上传失败: " + (res.error || '未知错误'));
-        }
-      } catch (err) {
-        showToast("上传异常: " + err);
-      }
-    }
-
-    // ==================== 系统状态与历史日志 ====================
-    async function fetchStatus() {
-      try {
-        const resp = await fetch('/api/status');
-        const st = await resp.json();
-
-        if (st.switch_face_window_sec) {
-          currentSwitchWindowSec = st.switch_face_window_sec;
-          const descEl = document.getElementById('presenceWindowDesc');
-          if (descEl) {
-            descEl.innerText = `💡 机制说明：C++ 统一控制开门信号。收到按开关时间点的前后 ${currentSwitchWindowSec} 秒（可在 config.yaml 的 switch_face_window_sec 中配置）内人脸识别成功即直接判定开门！`;
-          }
-        }
-
-        if (st.family_presence_active) {
-          document.getElementById('presencePillText').innerText = '自家人在场: ' + (st.last_verified_family || '有');
-          document.getElementById('presencePillText').style.color = 'var(--success)';
-          document.getElementById('presenceWindowTimer').innerText = `有效 (${st.presence_remaining_sec}s) [${st.last_verified_family}]`;
-          document.getElementById('presenceWindowTimer').style.color = 'var(--success)';
-        }
-
-        document.getElementById('unlockCountVal').innerText = st.unlock_count || 0;
-        document.getElementById('serviceStatusText').innerText = st.state === 'VERIFYING_STREAM' ? '视频拉流中' : '0% CPU 待机';
-
-        // 渲染历史记录
-        const tbody = document.getElementById('historyTableBody');
-        tbody.innerHTML = '';
-        if (!st.history || st.history.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">暂无历史记录</td></tr>';
-        } else {
-          st.history.forEach(h => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td>${h.time}</td>
-              <td><strong>${h.person}</strong></td>
-              <td><span class="badge badge-mode">${h.auth_mode || '多模态'}</span></td>
-              <td>${h.action || '开门'}</td>
-              <td>${h.elapsed_ms}ms</td>
-              <td><span class="badge badge-family">开门成功 (500ms脉冲)</span></td>
-            `;
-            tbody.appendChild(tr);
-          });
-        }
-      } catch (err) {}
-    }
-
-    // 页面定时器刷新
-    setInterval(fetchStatus, 3000);
-    fetchStatus();
-  </script>
+  <!-- 纯净模块化 JavaScript 入口 -->
+  <script type="module" src="/js/app.js"></script>
 </body>
 </html>
