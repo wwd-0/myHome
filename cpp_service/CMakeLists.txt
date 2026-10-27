@@ -22,6 +22,9 @@ add_executable(myhome_verify_server
     src/main.cpp
     src/person_engine.cpp
     src/gesture_engine.cpp
+    src/policy.cpp
+    src/actuator.cpp
+    src/coordinator.cpp
 )
 
 target_link_libraries(myhome_verify_server PRIVATE

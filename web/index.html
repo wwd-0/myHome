@@ -775,7 +775,7 @@
               <div class="sim-btn-card" onclick="simulateMode2()">
                 <div class="sim-icon">🔘</div>
                 <h4>方式 2: 人体 + 智能开关</h4>
-                <p>按门厅实体开关向 HA 发指令 + 自家人在场互锁判定</p>
+                <p>按门厅实体开关 + C++ 前后 N 秒互锁统一裁决开门</p>
               </div>
 
               <!-- 方式 3 -->
@@ -789,11 +789,11 @@
             <!-- 自家人在场窗口状态 -->
             <div style="margin-top: 14px; padding: 12px; background: #0c121c; border-radius: 8px; border: 1px solid #1c2738; font-size: 13px;">
               <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span style="color: var(--muted);">门前自家人在场有效期 (15秒窗口)：</span>
+                <span style="color: var(--muted);" id="presenceWindowLabel">门前自家人互锁有效期：</span>
                 <strong id="presenceWindowTimer">未激活 (0s)</strong>
               </div>
-              <div style="font-size: 12px; color: var(--muted);">
-                💡 机制说明：当检测到自家人时自动开启 15 秒在场倒计时，在此期间门厅智能开关随时按下即可触发开门，免去并发时序竞争冲突！
+              <div style="font-size: 12px; color: var(--muted);" id="presenceWindowDesc">
+                💡 机制说明：C++ 统一控制开门信号。收到按开关时间点的前后 5 秒内（可在 config.yaml 的 switch_face_window_sec 中配置）人脸识别成功即直接判定开门！
               </div>
             </div>
           </div>
@@ -1048,11 +1048,13 @@
         });
       }
 
-      // 如果有自家人，刷新自家人在场倒计时 (15s)
+      // 如果有自家人，刷新自家人在场倒计时
       if (res.family_count > 0) {
-        startPresenceCountdown(15, familyNames);
+        startPresenceCountdown(currentSwitchWindowSec, familyNames);
       }
     }
+
+    let currentSwitchWindowSec = 5.0;
 
     function startPresenceCountdown(sec, name) {
       presenceEndTime = Date.now() + sec * 1000;
@@ -1125,13 +1127,13 @@
 
     // 仿真模式 2: 人体 + 智能开关
     async function simulateMode2() {
-      showToast("仿真方式 2: 按下门厅智能开关，发送指令至 HA...");
+      showToast("仿真方式 2: 按下门厅智能开关，请求 C++ 统一裁决开门...");
       try {
         const resp = await fetch('/api/switch_trigger', { method: 'POST' });
         const res = await resp.json();
         if (res.passed) {
           animateRelayLed();
-          showToast(`🎉 成功触发！自家人在场窗口有效，直接开门 (${res.person})`);
+          showToast(`🎉 成功触发！开关前后 ${res.window_sec || currentSwitchWindowSec}s 互锁有效，直接开门 (${res.person})`);
         } else {
           showToast(`⏳ ${res.message}`);
         }
@@ -1316,6 +1318,21 @@
       try {
         const resp = await fetch('/api/status');
         const st = await resp.json();
+
+        if (st.switch_face_window_sec) {
+          currentSwitchWindowSec = st.switch_face_window_sec;
+          const descEl = document.getElementById('presenceWindowDesc');
+          if (descEl) {
+            descEl.innerText = `💡 机制说明：C++ 统一控制开门信号。收到按开关时间点的前后 ${currentSwitchWindowSec} 秒（可在 config.yaml 的 switch_face_window_sec 中配置）内人脸识别成功即直接判定开门！`;
+          }
+        }
+
+        if (st.family_presence_active) {
+          document.getElementById('presencePillText').innerText = '自家人在场: ' + (st.last_verified_family || '有');
+          document.getElementById('presencePillText').style.color = 'var(--success)';
+          document.getElementById('presenceWindowTimer').innerText = `有效 (${st.presence_remaining_sec}s) [${st.last_verified_family}]`;
+          document.getElementById('presenceWindowTimer').style.color = 'var(--success)';
+        }
 
         document.getElementById('unlockCountVal').innerText = st.unlock_count || 0;
         document.getElementById('serviceStatusText').innerText = st.state === 'VERIFYING_STREAM' ? '视频拉流中' : '0% CPU 待机';

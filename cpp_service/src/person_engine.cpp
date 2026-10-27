@@ -89,7 +89,6 @@ CppPersonEngine::CppPersonEngine(const std::string& yolo_or_url,
     : classes_json_path_(classes_json_path),
       db_dir_(db_dir) {
     if (yolo_or_url.rfind("http", 0) == 0) {
-        // 兼容旧参数风格 (传入了 http://127.0.0.1:8092)
         yolo_model_path_ = "./vision/models/yolov8n.onnx";
         classifier_model_path_ = "./vision/models/person_classifier.onnx";
     } else {
@@ -197,22 +196,20 @@ bool CppPersonEngine::ensureServiceRunning() {
 }
 
 cv::Mat CppPersonEngine::cropMaximalAspectRatio(const cv::Mat& img, cv::Size target_size, cv::Rect* out_crop_rect) {
-    int th = target_size.height; // 512
-    int tw = target_size.width;  // 256
-    float target_ratio = static_cast<float>(tw) / static_cast<float>(th); // 0.5
+    int th = target_size.height;
+    int tw = target_size.width;
+    float target_ratio = static_cast<float>(tw) / static_cast<float>(th);
     int h = img.rows;
     int w = img.cols;
     float current_ratio = static_cast<float>(w) / static_cast<float>(h);
 
     int crop_x = 0, crop_y = 0, crop_w = w, crop_h = h;
     if (current_ratio > target_ratio) {
-        // 偏宽：保留 100% 高度，左右居中截取宽度
         crop_h = h;
         crop_w = std::max(1, static_cast<int>(std::round(h * target_ratio)));
         crop_x = std::max(0, (w - crop_w) / 2);
         crop_y = 0;
     } else {
-        // 偏高：保留 100% 宽度，上下居中截取高度
         crop_w = w;
         crop_h = std::max(1, static_cast<int>(std::round(w / target_ratio)));
         crop_x = 0;
@@ -230,134 +227,21 @@ cv::Mat CppPersonEngine::cropMaximalAspectRatio(const cv::Mat& img, cv::Size tar
     return resized;
 }
 
-json CppPersonEngine::getMembersSummary() {
-    json members_list = json::array();
-    for (const auto& c : classes_) {
-        int count = 0;
-        std::string c_dir = "door_person_detector/data/dataset/train/" + c;
-        if (!fs::exists(c_dir)) {
-            c_dir = "../door_person_detector/data/dataset/train/" + c;
-        }
-        if (fs::exists(c_dir)) {
-            for (const auto& entry : fs::directory_iterator(c_dir)) {
-                if (entry.is_regular_file() && entry.path().filename().string()[0] != '.') {
-                    count++;
-                }
-            }
-        }
-        members_list.push_back({
-            {"name", c},
-            {"sample_count", count},
-            {"is_model_class", true},
-            {"status", "已内化至 C++ 模型权重 (0 照片存储)"}
-        });
-    }
-
-    return json{
-        {"mode", "方案 A (端到端分类模型，0 照片存储)"},
-        {"model_type", "YOLOv8-Nano + LightPersonIDNet (C++ Native OpenCV DNN)"},
-        {"device", "OpenCV DNN (Pure C++ Native)"},
-        {"total_members", classes_.size()},
-        {"max_members", 15},
-        {"members", members_list},
-        {"classes", classes_}
-    };
-}
-
-std::vector<uchar> CppPersonEngine::getPhotoBinary(const std::string& filename) {
-    std::vector<uchar> data;
-    if (filename.empty() || filename.find("..") != std::string::npos) {
-        return data;
-    }
-    std::vector<std::string> search_dirs = {
-        db_dir_,
-        "vision/db/faces",
-        "../vision/db/faces",
-        "door_person_detector/data/dataset/train",
-        "../door_person_detector/data/dataset/train"
-    };
-    for (const auto& d : search_dirs) {
-        if (!fs::exists(d)) continue;
-        for (const auto& entry : fs::recursive_directory_iterator(d)) {
-            if (entry.is_regular_file() && entry.path().filename().string() == filename) {
-                std::ifstream file(entry.path(), std::ios::binary);
-                if (file) {
-                    return std::vector<uchar>((std::istreambuf_iterator<char>(file)),
-                                              std::istreambuf_iterator<char>());
-                }
-            }
-        }
-    }
-    return data;
-}
-
-json CppPersonEngine::uploadPhoto(const std::string& name, const std::string& base64_image) {
-    if (name.empty() || base64_image.empty()) {
-        return {{"error", "Invalid photo name or image"}};
-    }
-    auto raw_bytes = base64Decode(base64_image);
-    if (raw_bytes.empty()) {
-        return {{"error", "Failed to decode base64 image"}};
-    }
-    std::string target_dir = "door_person_detector/data/dataset/train/" + name;
-    if (!fs::exists("door_person_detector") && fs::exists("../door_person_detector")) {
-        target_dir = "../" + target_dir;
-    }
-    fs::create_directories(target_dir);
-    std::string fname = name + "_" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()).count()) + ".jpg";
-    std::ofstream out(target_dir + "/" + fname, std::ios::binary);
-    out.write(reinterpret_cast<const char*>(raw_bytes.data()), raw_bytes.size());
-    return {{"status", "success"}, {"filename", fname}, {"message", "照片已保存至训练集目录"}};
-}
-
-json CppPersonEngine::deletePhoto(const std::string& filename) {
-    if (filename.empty() || filename.find("..") != std::string::npos) {
-        return {{"error", "Invalid filename"}};
-    }
-    std::vector<std::string> search_dirs = {
-        "door_person_detector/data/dataset/train",
-        "../door_person_detector/data/dataset/train",
-        db_dir_,
-        "vision/db/faces"
-    };
-    for (const auto& d : search_dirs) {
-        if (!fs::exists(d)) continue;
-        for (const auto& entry : fs::recursive_directory_iterator(d)) {
-            if (entry.is_regular_file() && entry.path().filename().string() == filename) {
-                fs::remove(entry.path());
-                return {{"status", "success"}, {"deleted", filename}};
-            }
-        }
-    }
-    return {{"error", "File not found"}};
-}
-
-json CppPersonEngine::reloadGallery() {
-    bool ok = loadModels();
-    return {
-        {"status", ok ? "success" : "error"},
-        {"message", ok ? "C++ 原生模型与家庭成员映射已刷新" : "模型重载失败"},
-        {"classes", classes_}
-    };
-}
-
-json CppPersonEngine::predictFrame(const cv::Mat& frame) {
-    if (frame.empty()) {
-        return json{{"error", "Empty frame"}};
-    }
+FrameRecognitionResult CppPersonEngine::detectAndRecognize(const cv::Mat& frame) {
+    FrameRecognitionResult result;
+    if (frame.empty()) return result;
 
     auto t_start = std::chrono::steady_clock::now();
     int frame_w = frame.cols;
     int frame_h = frame.rows;
     float aspect_ratio = static_cast<float>(frame_w) / static_cast<float>(frame_h);
 
-    std::vector<PersonDetail> person_results;
-
     std::lock_guard<std::mutex> lk(net_mtx_);
     if (yolo_net_.empty() || classifier_net_.empty()) {
-        return json{{"error", "Models not loaded"}};
+        return result;
     }
+
+    int num_classes = static_cast<int>(classes_.size());
 
     // 策略 1: 若输入图像本身就是约 1:2 的单人人像切片 (如 256x512 测试图/头像)
     bool is_direct_portrait = (aspect_ratio >= 0.40f && aspect_ratio <= 0.65f);
@@ -373,7 +257,6 @@ json CppPersonEngine::predictFrame(const cv::Mat& frame) {
 
         int best_idx = 0;
         float best_score = -1.0f;
-        int num_classes = static_cast<int>(classes_.size());
         if (cls_out.total() > 0) {
             const float* scores = cls_out.ptr<float>(0);
             for (int c = 0; c < std::min(static_cast<int>(cls_out.total()), num_classes); ++c) {
@@ -403,17 +286,17 @@ json CppPersonEngine::predictFrame(const cv::Mat& frame) {
         pd.bbox = cv::Rect(0, 0, frame_w, frame_h);
         pd.status = "正面";
         pd.latency_ms = 0.0;
-        person_results.push_back(pd);
+        result.persons.push_back(pd);
     } else {
-        // 策略 2: 完整门禁画面或合影图像，先运行 YOLOv8-Nano 检测所有人像目标
+        // 策略 2: 完整门禁画面，先运行 YOLOv8-Nano 检测所有人像目标
         cv::Mat yolo_blob = cv::dnn::blobFromImage(
             frame, 1.0 / 255.0, cv::Size(640, 640), cv::Scalar(0, 0, 0), true, false);
         yolo_net_.setInput(yolo_blob);
-        cv::Mat yolo_out = yolo_net_.forward(); // shape: (1, 84, 8400)
+        cv::Mat yolo_out = yolo_net_.forward();
 
         cv::Mat det_mat(84, 8400, CV_32F, yolo_out.ptr<float>());
         cv::Mat det_t;
-        cv::transpose(det_mat, det_t); // shape: (8400, 84)
+        cv::transpose(det_mat, det_t);
 
         std::vector<cv::Rect> candidate_boxes;
         std::vector<float> candidate_confs;
@@ -422,7 +305,7 @@ json CppPersonEngine::predictFrame(const cv::Mat& frame) {
 
         for (int i = 0; i < det_t.rows; ++i) {
             const float* row = det_t.ptr<float>(i);
-            float person_conf = row[4]; // class 0 (person)
+            float person_conf = row[4];
             if (person_conf >= 0.40f) {
                 float cx = row[0];
                 float cy = row[1];
@@ -442,17 +325,9 @@ json CppPersonEngine::predictFrame(const cv::Mat& frame) {
         std::vector<int> nms_indices;
         cv::dnn::NMSBoxes(candidate_boxes, candidate_confs, 0.40f, 0.45f, nms_indices);
 
-        if (nms_indices.empty()) {
-            // 保底: 全画幅居中裁剪
-            candidate_boxes.push_back(cv::Rect(0, 0, frame_w, frame_h));
-            candidate_confs.push_back(1.0f);
-            nms_indices.push_back(0);
-        }
-
-        int num_classes = static_cast<int>(classes_.size());
+        // 注意: 若检测不到人像目标，直接返回 0 人，坚决不做全画幅盲切兜底以杜绝误报
         for (int idx : nms_indices) {
             cv::Rect b = candidate_boxes[idx];
-            // 适度向外扩展 8% 边距，确保头部与全身轮廓完整
             int pad_x = static_cast<int>(b.width * 0.08f);
             int pad_y = static_cast<int>(b.height * 0.08f);
             int x1 = std::max(0, b.x - pad_x);
@@ -502,43 +377,34 @@ json CppPersonEngine::predictFrame(const cv::Mat& frame) {
             pd.bbox = b;
             pd.status = "正面";
             pd.latency_ms = 0.0;
-            person_results.push_back(pd);
+            result.persons.push_back(pd);
         }
     }
 
     auto t_end = std::chrono::steady_clock::now();
-    double total_latency_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
+    result.latency_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
+    result.total_persons = static_cast<int>(result.persons.size());
 
-    // 统计感知汇总
-    int total_persons = static_cast<int>(person_results.size());
-    int family_count = 0;
-    int stranger_count = 0;
-    std::vector<std::string> family_members;
-    json persons_json = json::array();
-
-    cv::Mat annotated = frame.clone();
-
-    for (auto& p : person_results) {
+    for (const auto& p : result.persons) {
         if (p.is_family) {
-            family_count++;
-            if (std::find(family_members.begin(), family_members.end(), p.name) == family_members.end()) {
-                family_members.push_back(p.name);
+            result.family_count++;
+            if (std::find(result.family_members.begin(), result.family_members.end(), p.name) == result.family_members.end()) {
+                result.family_members.push_back(p.name);
             }
         } else {
-            stranger_count++;
+            result.stranger_count++;
         }
+    }
 
-        persons_json.push_back({
-            {"name", p.name},
-            {"score", std::round(p.score * 1000.0f) / 1000.0f},
-            {"is_family", p.is_family},
-            {"is_stranger", p.is_stranger},
-            {"status", p.status},
-            {"bbox", {{"x", p.bbox.x}, {"y", p.bbox.y}, {"w", p.bbox.width}, {"h", p.bbox.height}}},
-            {"latency_ms", std::round(total_latency_ms * 10.0) / 10.0}
-        });
+    return result;
+}
 
-        // 绘制可视化标定框
+cv::Mat CppPersonEngine::renderAnnotation(const cv::Mat& frame, const FrameRecognitionResult& result) {
+    if (frame.empty()) return cv::Mat();
+    cv::Mat annotated = frame.clone();
+    int frame_w = annotated.cols;
+
+    for (const auto& p : result.persons) {
         cv::Scalar color = p.is_family ? cv::Scalar(0, 220, 100) : cv::Scalar(60, 60, 240);
         cv::rectangle(annotated, p.bbox, color, 2, cv::LINE_AA);
 
@@ -563,33 +429,60 @@ json CppPersonEngine::predictFrame(const cv::Mat& frame) {
                     cv::FONT_HERSHEY_SIMPLEX, 0.55, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
     }
 
-    // 画面顶部科技感 HUD 横幅
     int hud_h = 44;
     cv::Mat overlay = annotated.clone();
     cv::rectangle(overlay, cv::Point(0, 0), cv::Point(frame_w, hud_h), cv::Scalar(20, 24, 30), -1);
     cv::addWeighted(overlay, 0.75, annotated, 0.25, 0, annotated);
 
     std::string hud_info = cv::format("Total: %d | Family: %d | Stranger: %d | Latency: %.1fms (Pure C++)",
-                                      total_persons, family_count, stranger_count, total_latency_ms);
+                                      result.total_persons, result.family_count, result.stranger_count, result.latency_ms);
     cv::putText(annotated, hud_info, cv::Point(16, 28), cv::FONT_HERSHEY_SIMPLEX, 0.65, cv::Scalar(0, 230, 255), 2, cv::LINE_AA);
 
+    return annotated;
+}
+
+std::string CppPersonEngine::toBase64Jpeg(const cv::Mat& img, int quality) {
+    if (img.empty()) return "";
     std::vector<uchar> buf;
-    cv::imencode(".jpg", annotated, buf, {cv::IMWRITE_JPEG_QUALITY, 85});
-    std::string b64_img = "data:image/jpeg;base64," + base64Encode(buf.data(), buf.size());
+    cv::imencode(".jpg", img, buf, {cv::IMWRITE_JPEG_QUALITY, quality});
+    return "data:image/jpeg;base64," + base64Encode(buf.data(), buf.size());
+}
+
+nlohmann::json CppPersonEngine::predictFrame(const cv::Mat& frame) {
+    if (frame.empty()) {
+        return json{{"error", "Empty frame"}};
+    }
+
+    FrameRecognitionResult result = detectAndRecognize(frame);
+    cv::Mat annotated = renderAnnotation(frame, result);
+    std::string b64_img = toBase64Jpeg(annotated, 85);
+
+    json persons_json = json::array();
+    for (const auto& p : result.persons) {
+        persons_json.push_back({
+            {"name", p.name},
+            {"score", std::round(p.score * 1000.0f) / 1000.0f},
+            {"is_family", p.is_family},
+            {"is_stranger", p.is_stranger},
+            {"status", p.status},
+            {"bbox", {{"x", p.bbox.x}, {"y", p.bbox.y}, {"w", p.bbox.width}, {"h", p.bbox.height}}},
+            {"latency_ms", std::round(result.latency_ms * 10.0) / 10.0}
+        });
+    }
 
     return json{
-        {"total_persons", total_persons},
-        {"family_count", family_count},
-        {"stranger_count", stranger_count},
-        {"family_members", family_members},
-        {"has_stranger", stranger_count > 0},
+        {"total_persons", result.total_persons},
+        {"family_count", result.family_count},
+        {"stranger_count", result.stranger_count},
+        {"family_members", result.family_members},
+        {"has_stranger", result.stranger_count > 0},
         {"persons", persons_json},
-        {"latency_ms", std::round(total_latency_ms * 10.0) / 10.0},
+        {"latency_ms", std::round(result.latency_ms * 10.0) / 10.0},
         {"annotated_image", b64_img}
     };
 }
 
-json CppPersonEngine::predictBase64(const std::string& base64_image) {
+nlohmann::json CppPersonEngine::predictBase64(const std::string& base64_image) {
     if (base64_image.empty()) {
         return json{{"error", "Empty base64 image"}};
     }
@@ -604,7 +497,148 @@ json CppPersonEngine::predictBase64(const std::string& base64_image) {
     return predictFrame(frame);
 }
 
+nlohmann::json CppPersonEngine::getMembersSummary() {
+    std::vector<std::string> current_classes;
+    {
+        std::lock_guard<std::mutex> lk(net_mtx_);
+        current_classes = classes_;
+    }
+
+    json members_list = json::array();
+    for (const auto& c : current_classes) {
+        int count = 0;
+        std::string c_dir = "door_person_detector/data/dataset/train/" + c;
+        if (!fs::exists(c_dir)) {
+            c_dir = "../door_person_detector/data/dataset/train/" + c;
+        }
+        if (fs::exists(c_dir)) {
+            for (const auto& entry : fs::directory_iterator(c_dir)) {
+                if (entry.is_regular_file() && entry.path().filename().string()[0] != '.') {
+                    count++;
+                }
+            }
+        }
+        members_list.push_back({
+            {"name", c},
+            {"sample_count", count},
+            {"is_model_class", true},
+            {"status", "已内化至 C++ 模型权重 (0 照片存储)"}
+        });
+    }
+
+    return json{
+        {"mode", "方案 A (端到端分类模型，0 照片存储)"},
+        {"model_type", "YOLOv8-Nano + LightPersonIDNet (C++ Native OpenCV DNN)"},
+        {"device", "OpenCV DNN (Pure C++ Native)"},
+        {"total_members", current_classes.size()},
+        {"max_members", 15},
+        {"members", members_list},
+        {"classes", current_classes}
+    };
+}
+
+std::vector<uchar> CppPersonEngine::getPhotoBinary(const std::string& filename) {
+    std::vector<uchar> data;
+    if (filename.empty() || filename.find("..") != std::string::npos || filename.find('/') != std::string::npos) {
+        return data;
+    }
+    std::vector<std::string> search_dirs = {
+        db_dir_,
+        "vision/db/faces",
+        "../vision/db/faces",
+        "door_person_detector/data/dataset/train",
+        "../door_person_detector/data/dataset/train"
+    };
+    for (const auto& d : search_dirs) {
+        if (!fs::exists(d)) continue;
+        for (const auto& entry : fs::recursive_directory_iterator(d)) {
+            if (entry.is_regular_file() && entry.path().filename().string() == filename) {
+                std::ifstream file(entry.path(), std::ios::binary);
+                if (file) {
+                    return std::vector<uchar>((std::istreambuf_iterator<char>(file)),
+                                              std::istreambuf_iterator<char>());
+                }
+            }
+        }
+    }
+    return data;
+}
+
+nlohmann::json CppPersonEngine::uploadPhoto(const std::string& name, const std::string& base64_image) {
+    if (name.empty() || base64_image.empty()) {
+        return {{"error", "Invalid photo name or image"}};
+    }
+
+    // 防御目录穿越
+    std::string safe_name;
+    for (char ch : name) {
+        if (ch != '/' && ch != '\\' && ch != '.' && ch != ':') {
+            safe_name += ch;
+        }
+    }
+    if (safe_name.empty()) {
+        return {{"error", "Invalid photo name (illegal characters)"}};
+    }
+
+    auto raw_bytes = base64Decode(base64_image);
+    if (raw_bytes.empty()) {
+        return {{"error", "Failed to decode base64 image"}};
+    }
+    std::string target_dir = "door_person_detector/data/dataset/train/" + safe_name;
+    if (!fs::exists("door_person_detector") && fs::exists("../door_person_detector")) {
+        target_dir = "../" + target_dir;
+    }
+    fs::create_directories(target_dir);
+    std::string fname = safe_name + "_" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count()) + ".jpg";
+    std::ofstream out(target_dir + "/" + fname, std::ios::binary);
+    out.write(reinterpret_cast<const char*>(raw_bytes.data()), raw_bytes.size());
+    return {{"status", "success"}, {"filename", fname}, {"message", "照片已保存至训练集目录"}};
+}
+
+nlohmann::json CppPersonEngine::deletePhoto(const std::string& filename) {
+    if (filename.empty() || filename.find("..") != std::string::npos || filename.find('/') != std::string::npos) {
+        return {{"error", "Invalid filename"}};
+    }
+    std::vector<std::string> search_dirs = {
+        "door_person_detector/data/dataset/train",
+        "../door_person_detector/data/dataset/train",
+        db_dir_,
+        "vision/db/faces"
+    };
+    for (const auto& d : search_dirs) {
+        if (!fs::exists(d)) continue;
+        for (const auto& entry : fs::recursive_directory_iterator(d)) {
+            if (entry.is_regular_file() && entry.path().filename().string() == filename) {
+                fs::remove(entry.path());
+                return {{"status", "success"}, {"deleted", filename}};
+            }
+        }
+    }
+    return {{"error", "File not found"}};
+}
+
+nlohmann::json CppPersonEngine::reloadGallery() {
+    bool ok = loadModels();
+    std::vector<std::string> current_classes;
+    {
+        std::lock_guard<std::mutex> lk(net_mtx_);
+        current_classes = classes_;
+    }
+    return {
+        {"status", ok ? "success" : "error"},
+        {"message", ok ? "C++ 原生模型与家庭成员映射已刷新" : "模型重载失败"},
+        {"classes", current_classes}
+    };
+}
+
 std::vector<std::string> CppPersonEngine::getEnrolledNames() {
+    std::lock_guard<std::mutex> lk(net_mtx_);
+    return classes_;
+}
+
+std::vector<std::string> CppPersonEngine::getClasses() {
+    std::lock_guard<std::mutex> lk(net_mtx_);
     return classes_;
 }
 
