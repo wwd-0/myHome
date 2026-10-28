@@ -1,12 +1,12 @@
 /**
  * ==============================================================================
  * MyHome AI - 门锁管理中枢视图控制器 (lock-view.js)
- * 职责：负责门锁状态表盘、应急控制、互锁规则指示与安全审计流水的生命周期
+ * 职责：负责门锁状态表盘、应急控制、互锁规则指示与全量安全审计流水的生命周期
  * ==============================================================================
  */
 
 import { api } from '../api.js';
-import { store } from '../store.js';
+import { store, formatAuditPresentation } from '../store.js';
 
 export class LockView {
   constructor() {
@@ -19,8 +19,9 @@ export class LockView {
     this.policyWindowTextEl = document.getElementById('policyWindowSecText');
     this.presenceStatusEl = document.getElementById('lockPresenceStatus');
     this.btnWakeEl = document.getElementById('btnWakeupVerify');
+    this.btnSwitchEl = document.getElementById('btnLockSwitch');
 
-    // 最近开锁详情
+    // 最近事件详情
     this.lastPassedBadge = document.getElementById('lockLastPassedBadge');
     this.lastPersonEl = document.getElementById('lockLastPerson');
     this.lastModeEl = document.getElementById('lockLastMode');
@@ -29,6 +30,9 @@ export class LockView {
 
     // 专属流水表格
     this.historyTableBody = document.getElementById('lockHistoryTableBody');
+
+    // 追踪当前正在等待人脸核验的按键事件 ID，用于在状态揭晓时主动弹窗提醒
+    this.trackedSwitchEventId = null;
 
     this.bindEvents();
     this.subscribeStore();
@@ -40,9 +44,8 @@ export class LockView {
       btnEmergency.addEventListener('click', () => this.handleEmergencyUnlock());
     }
 
-    const btnSwitch = document.getElementById('btnLockSwitch');
-    if (btnSwitch) {
-      btnSwitch.addEventListener('click', () => this.handleSwitchTrigger());
+    if (this.btnSwitchEl) {
+      this.btnSwitchEl.addEventListener('click', () => this.handleSwitchTrigger());
     }
 
     if (this.btnWakeEl) {
@@ -78,47 +81,82 @@ export class LockView {
 
     // 2. 更新门前在场与开关互锁状态
     if (this.presenceStatusEl) {
-      if (st.family_presence_active) {
-        this.presenceStatusEl.innerHTML = `<span style="color: var(--success);">🟢 自家人在场 (${st.presence_remaining_sec}s) [${st.last_verified_family || ''}]</span>`;
+      if (st.switch_waiting_active) {
+        this.presenceStatusEl.innerHTML = `<span style="color: var(--warning);">🟡 开关已按下 · 等待自家人识别 (${st.switch_waiting_remaining_sec}s)</span>`;
+      } else if (st.family_presence_active) {
+        this.presenceStatusEl.innerHTML = `<span style="color: var(--success);">🟢 自家人在场 (${st.presence_remaining_sec}s) [${st.last_verified_family || ''}] · 按键即开</span>`;
+      } else if (st.cooldown_active) {
+        this.presenceStatusEl.innerHTML = `<span style="color: var(--accent);">⏸️ 开锁冷却保护中 (${st.cooldown_remaining_sec}s)</span>`;
       } else {
         this.presenceStatusEl.innerHTML = `<span style="color: var(--muted);">⚪ 待命中 (等待自家人或按键)</span>`;
       }
     }
 
-    // 3. 唤醒按钮状态
+    // 3. 按钮动态状态反馈
+    if (this.btnSwitchEl) {
+      this.btnSwitchEl.innerHTML = st.switch_waiting_active
+        ? `<span>⏳ 等待自家人识别 (${st.switch_waiting_remaining_sec}s)...</span>`
+        : '<span>🔘 门厅开关开门 (模拟按键)</span>';
+    }
+
     if (this.btnWakeEl) {
       this.btnWakeEl.innerHTML = (st.state === 'VERIFYING_STREAM')
         ? '<span>📡 正在拉流核验...</span>'
         : '<span>📡 唤醒感知核验</span>';
     }
 
-    // 4. 最近一次开锁详情
-    if (st.last_result && st.last_result.passed) {
-      if (this.lastPassedBadge) {
-        this.lastPassedBadge.innerText = '核验开门成功';
-        this.lastPassedBadge.className = 'badge badge-family';
+    // 4. 追踪挂起按键事件的结果揭晓提醒
+    if (this.trackedSwitchEventId && Array.isArray(st.history)) {
+      const tracked = st.history.find(item => item.id === this.trackedSwitchEventId);
+      if (tracked && tracked.status && tracked.status !== 'pending') {
+        this.trackedSwitchEventId = null;
+        if (tracked.status === 'unlocked') {
+          this.animateUnlock(tracked.person, '人体 + 智能开关');
+          window.showToast?.(`🎉 互锁核验通过！识别到【${tracked.person}】，门锁已自动打开！`);
+        } else if (tracked.status === 'blocked') {
+          window.showToast?.(`🛡️ 未开门：${tracked.detail || '超时未识别到自家人'}（已记录审计流水）`);
+        } else if (tracked.status === 'cooldown') {
+          window.showToast?.(`⏸️ ${tracked.detail || '处于冷却保护期'}（已记录审计流水）`);
+        }
       }
-      if (this.lastPersonEl) this.lastPersonEl.innerText = st.last_result.person || '-';
-      if (this.lastModeEl) this.lastModeEl.innerText = st.last_result.auth_mode || '-';
-      if (this.lastActionEl) this.lastActionEl.innerText = st.last_result.action || '-';
-      if (this.lastTimeEl) this.lastTimeEl.innerText = st.last_result.timestamp || '-';
     }
 
-    // 5. 渲染流水日志
+    // 5. 最近一次门锁事件详情（无论开锁成功、等待核验还是安全拦截均清晰呈现）
+    const latestEvent = (Array.isArray(st.history) && st.history.length > 0)
+      ? st.history[0]
+      : (st.last_result && st.last_result.action !== 'None' ? st.last_result : null);
+
+    if (latestEvent) {
+      const pres = formatAuditPresentation(latestEvent);
+      if (this.lastPassedBadge) {
+        this.lastPassedBadge.innerText = pres.badgeText;
+        this.lastPassedBadge.className = `badge ${pres.badgeClass}`;
+      }
+      if (this.lastPersonEl) this.lastPersonEl.innerText = latestEvent.person || '-';
+      if (this.lastModeEl) this.lastModeEl.innerText = latestEvent.auth_mode || '-';
+      if (this.lastActionEl) this.lastActionEl.innerText = pres.actionLabel;
+      if (this.lastTimeEl) this.lastTimeEl.innerText = latestEvent.time || latestEvent.timestamp || '-';
+    }
+
+    // 6. 渲染全量安全审计流水表
     if (this.historyTableBody) {
       this.historyTableBody.innerHTML = '';
       if (!st.history || st.history.length === 0) {
-        this.historyTableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">暂无开门流水记录</td></tr>';
+        this.historyTableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">暂无门锁操作与审计流水记录</td></tr>';
       } else {
         st.history.forEach(h => {
+          const pres = formatAuditPresentation(h);
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>${h.time}</td>
-            <td><strong>${h.person}</strong></td>
+            <td><strong style="${pres.personStyle}">${h.person}</strong></td>
             <td><span class="badge badge-mode">${h.auth_mode || '多模态'}</span></td>
-            <td><code style="color: var(--purple); font-weight: 700;">${h.action || '开门'}</code></td>
+            <td>
+              <div style="color: var(--purple); font-weight: 700;">${pres.actionLabel}</div>
+              ${pres.detail ? `<div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">${pres.detail}</div>` : ''}
+            </td>
             <td>${h.elapsed_ms}ms</td>
-            <td><span class="badge badge-family">开锁成功</span></td>
+            <td><span class="badge ${pres.badgeClass}">${pres.badgeText}</span></td>
           `;
           this.historyTableBody.appendChild(tr);
         });
@@ -138,35 +176,43 @@ export class LockView {
     setTimeout(() => {
       this.dialEl.classList.remove('unlocked');
       this.dialIconEl.innerText = '🔒';
-      this.statusTitleEl.innerText = '智能门锁：已锁闭 (安全防御中)';
+      this.statusTitleEl.innerText = '智能门锁：已锁闭 (安全防护中)';
       this.statusTitleEl.style.color = 'var(--text)';
-      this.relayDescEl.innerText = '智能门锁：安全锁闭中 · 具备自动复位防夹闭锁保护机制';
+      this.relayDescEl.innerText = '门锁电控状态：安全闭锁 · 配备自动复位防夹防过热保护';
     }, 1200);
   }
 
   // 应急开门处理
   async handleEmergencyUnlock() {
     window.showToast?.("⚡ 正在执行应急开锁指令...");
-    this.animateUnlock("管理员 (应急开门)", "远程开锁");
     try {
-      await api.testRelay();
-      window.showToast?.("✅ 应急开门已执行！");
+      const res = await api.testRelay();
+      if (res.passed !== false) {
+        this.animateUnlock("管理员 (应急开门)", "远程开锁");
+        window.showToast?.("✅ 应急开门已执行！");
+      } else {
+        window.showToast?.(`⏸️ ${res.message || '处于防重触发冷却期'}`);
+      }
       store.fetchStatus();
     } catch (err) {
       window.showToast?.("开门失败: " + err.message);
     }
   }
 
-  // 智能开关互锁仿真
+  // 智能开关互锁触发
   async handleSwitchTrigger() {
-    window.showToast?.("已按下门厅开关，等待自家人识别联动开门...");
     try {
       const res = await api.triggerSwitch();
-      if (res.passed) {
+      if (res.status === 'unlocked' || res.passed) {
+        this.trackedSwitchEventId = null;
         this.animateUnlock(res.person, '人体 + 智能开关');
-        window.showToast?.(`🎉 开关前后 ${res.window_sec || 5} 秒内识别成功，门锁已打开 (${res.person})`);
+        window.showToast?.(`🎉 ${res.message}`);
+      } else if (res.status === 'cooldown') {
+        this.trackedSwitchEventId = null;
+        window.showToast?.(`⏸️ ${res.message}`);
       } else {
-        window.showToast?.(`⏳ ${res.message}`);
+        this.trackedSwitchEventId = res.event_id || null;
+        window.showToast?.(`🔘 ${res.message}`);
       }
       store.fetchStatus();
     } catch (err) {
@@ -188,6 +234,7 @@ export class LockView {
 
   // 强制休眠
   async handleStopVerify() {
+    this.trackedSwitchEventId = null;
     window.showToast?.("⏹️ 正在停止摄像头识别...");
     try {
       await api.stopVerify();

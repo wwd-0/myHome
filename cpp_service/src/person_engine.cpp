@@ -85,9 +85,11 @@ namespace myhome {
 CppPersonEngine::CppPersonEngine(const std::string& yolo_or_url,
                                  const std::string& classifier_or_db,
                                  const std::string& classes_json_path,
-                                 const std::string& db_dir)
+                                 const std::string& db_dir,
+                                 const std::string& face_det_model_path)
     : classes_json_path_(classes_json_path),
-      db_dir_(db_dir) {
+      db_dir_(db_dir),
+      face_det_model_path_(face_det_model_path) {
     if (yolo_or_url.rfind("http", 0) == 0) {
         yolo_model_path_ = "./vision/models/yolov8n.onnx";
         classifier_model_path_ = "./vision/models/person_classifier.onnx";
@@ -156,6 +158,28 @@ bool CppPersonEngine::loadModels() {
         return false;
     }
 
+    std::vector<std::string> face_candidates = {
+        face_det_model_path_,
+        "./vision/models/face_detection_yunet_2023mar.onnx",
+        "../vision/models/face_detection_yunet_2023mar.onnx"
+    };
+    std::string resolved_face;
+    for (const auto& p : face_candidates) {
+        if (!p.empty() && fs::exists(p)) {
+            resolved_face = p;
+            break;
+        }
+    }
+    face_detector_.release();
+    if (!resolved_face.empty()) {
+        try {
+            face_detector_ = cv::FaceDetectorYN::create(
+                resolved_face, "", cv::Size(320, 320), 0.65f, 0.3f, 5000);
+        } catch (const cv::Exception& e) {
+            std::cerr << "⚠️ [CppPersonEngine] YuNet 人脸检测模型加载警告: " << e.what() << std::endl;
+        }
+    }
+
     classes_.clear();
     if (!resolved_json.empty()) {
         try {
@@ -178,6 +202,9 @@ bool CppPersonEngine::loadModels() {
     std::cout << "🚀 [CppPersonEngine] 纯 C++ 原生 OpenCV DNN 人体感知引擎就绪！" << std::endl;
     std::cout << "   • YOLOv8 检测模型: " << resolved_yolo << std::endl;
     std::cout << "   • 人体分类模型:   " << resolved_cls << std::endl;
+    if (!resolved_face.empty() && face_detector_) {
+        std::cout << "   • YuNet 人脸检测: " << resolved_face << std::endl;
+    }
     std::cout << "   • 已内化自家人数: " << classes_.size() << " 位 -> ";
     for (const auto& c : classes_) std::cout << "[" << c << "] ";
     std::cout << std::endl;
@@ -381,6 +408,46 @@ FrameRecognitionResult CppPersonEngine::detectAndRecognize(const cv::Mat& frame)
         }
     }
 
+    // YuNet 人脸检测：精确判定画面中是否存在真实人脸（用于人脸快照触发与防背影误抓拍）
+    if (face_detector_) {
+        try {
+            int max_dim = std::max(frame_w, frame_h);
+            float scale = (max_dim > 640) ? (640.0f / static_cast<float>(max_dim)) : 1.0f;
+            cv::Mat det_input;
+            if (scale < 1.0f) {
+                int sw = std::max(32, static_cast<int>(std::round(frame_w * scale)));
+                int sh = std::max(32, static_cast<int>(std::round(frame_h * scale)));
+                cv::resize(frame, det_input, cv::Size(sw, sh), 0, 0, cv::INTER_LINEAR);
+            } else {
+                det_input = frame;
+            }
+            face_detector_->setInputSize(det_input.size());
+            cv::Mat faces_mat;
+            face_detector_->detect(det_input, faces_mat);
+            float inv_scale = 1.0f / scale;
+            for (int r = 0; r < faces_mat.rows; ++r) {
+                float fx = faces_mat.at<float>(r, 0) * inv_scale;
+                float fy = faces_mat.at<float>(r, 1) * inv_scale;
+                float fw = faces_mat.at<float>(r, 2) * inv_scale;
+                float fh = faces_mat.at<float>(r, 3) * inv_scale;
+                float fscore = faces_mat.at<float>(r, 14);
+                int rx = std::max(0, static_cast<int>(std::round(fx)));
+                int ry = std::max(0, static_cast<int>(std::round(fy)));
+                int rw = std::min(frame_w - rx, std::max(1, static_cast<int>(std::round(fw))));
+                int rh = std::min(frame_h - ry, std::max(1, static_cast<int>(std::round(fh))));
+                if (rw >= 24 && rh >= 24) {
+                    FaceDetail fd;
+                    fd.bbox = cv::Rect(rx, ry, rw, rh);
+                    fd.score = fscore;
+                    result.faces.push_back(fd);
+                }
+            }
+            result.face_count = static_cast<int>(result.faces.size());
+        } catch (const cv::Exception& e) {
+            std::cerr << "⚠️ [CppPersonEngine] YuNet 推理警告: " << e.what() << std::endl;
+        }
+    }
+
     auto t_end = std::chrono::steady_clock::now();
     result.latency_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
     result.total_persons = static_cast<int>(result.persons.size());
@@ -474,6 +541,7 @@ nlohmann::json CppPersonEngine::predictFrame(const cv::Mat& frame) {
         {"total_persons", result.total_persons},
         {"family_count", result.family_count},
         {"stranger_count", result.stranger_count},
+        {"face_count", result.face_count},
         {"family_members", result.family_members},
         {"has_stranger", result.stranger_count > 0},
         {"persons", persons_json},

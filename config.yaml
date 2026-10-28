@@ -59,6 +59,19 @@ vision:
     # 【恶意遮挡报警规则】涂鸦传感器显示贴门有人(<1.2m)，但连续多少秒检测不到任何人脸
     no_face_occlusion_alert_sec: 6.0
 
+  # 人脸抓拍快照存储配置（按身份自动分目录保存：<root_dir>/<成员名>/ 与 <root_dir>/陌生人/）
+  snapshot:
+    enabled: true
+    # 快照保存根目录（可修改为任意相对路径或绝对路径）
+    root_dir: "./output/snapshots"
+    # 未识别为家庭成员时使用的独立子目录名称
+    stranger_subdir: "陌生人"
+    # 两次保存快照的最小时间间隔（秒），至少间隔 1.0 秒才保存下一次快照
+    min_interval_sec: 2.0
+    # 快照总数上限（张），超过 500 张后一次性批量删除最早的 100 张
+    max_total: 500
+    cleanup_batch: 100
+
   gesture:
     # 允许触发开门的目标手势列表 (可选: "OK", "OPEN_PALM", "VICTORY", "THUMB_UP")
     unlock_gestures:

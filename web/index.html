@@ -11,8 +11,9 @@
   <link rel="stylesheet" href="/css/layout.css" />
   <link rel="stylesheet" href="/css/components.css" />
   <link rel="stylesheet" href="/css/lock.css" />
-  <link rel="stylesheet" href="/css/test.css" />
   <link rel="stylesheet" href="/css/members.css" />
+  <link rel="stylesheet" href="/css/help.css" />
+  <link rel="stylesheet" href="/css/snapshots.css" />
 </head>
 <body>
   <div class="app-wrapper">
@@ -57,17 +58,18 @@
             <span class="group-arrow">▾</span>
           </div>
           <div class="tree-sub-items">
-            <a class="tree-item" data-tab="test">
-              <div class="tree-item-left">
-                <span class="tree-item-icon">👁️</span>
-                <span class="tree-item-label">门前识别核验</span>
-              </div>
-            </a>
             <a class="tree-item" data-tab="data">
               <div class="tree-item-left">
                 <span class="tree-item-icon">👥</span>
                 <span class="tree-item-label">家庭成员管理</span>
               </div>
+            </a>
+            <a class="tree-item" data-tab="snapshots">
+              <div class="tree-item-left">
+                <span class="tree-item-icon">📸</span>
+                <span class="tree-item-label">人脸抓拍快照</span>
+              </div>
+              <span class="tree-item-tag">500张轮转</span>
             </a>
           </div>
         </div>
@@ -88,6 +90,26 @@
                 <span class="tree-item-label">服务架构与监控</span>
               </div>
               <span class="tree-item-tag" style="background: rgba(56, 189, 248, 0.15); color: var(--accent);">C++ 原生</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- 分组 4: 帮助 -->
+        <div class="tree-group">
+          <div class="tree-group-title" title="点击折叠/展开">
+            <div class="group-title-left">
+              <span class="group-icon">📖</span>
+              <span class="group-text">帮助</span>
+            </div>
+            <span class="group-arrow">▾</span>
+          </div>
+          <div class="tree-sub-items">
+            <a class="tree-item" data-tab="help">
+              <div class="tree-item-left">
+                <span class="tree-item-icon">📋</span>
+                <span class="tree-item-label">门锁规则说明</span>
+              </div>
+              <span class="tree-item-tag">指南</span>
             </a>
           </div>
         </div>
@@ -124,6 +146,7 @@
           <div class="pill">
             <span id="presencePillText">自家人在场: 无</span>
           </div>
+          <button class="btn btn-primary" id="btnSaveSnapInterval" style="display: none;">💾 保存配置</button>
         </div>
       </div>
 
@@ -189,271 +212,92 @@
           </div>
         </div>
 
-        <div class="grid-2">
-          <!-- 左侧：门锁安全策略与互锁机制 -->
-          <div>
-            <div class="card">
-              <div class="card-title">
-                <div class="title-left">
-                  <span>🛡️</span>
-                  <span>智能开锁策略与互锁规则</span>
-                </div>
-                <span class="badge badge-family">智能双向互锁</span>
+        <div class="grid-2" style="margin-bottom: 22px;">
+          <!-- 最近一次门锁事件全景卡片 -->
+          <div class="card" style="margin-bottom: 0;">
+            <div class="card-title">
+              <div class="title-left">
+                <span>🔑</span>
+                <span>最近一次门锁事件全景详情</span>
               </div>
-
-              <!-- 策略 1: 智能开关互锁 -->
-              <div class="policy-box">
-                <div class="policy-header">
-                  <div class="policy-title">
-                    <span>🔘</span>
-                    <span>策略 1：自家人识别 + 门厅实体开关</span>
-                  </div>
-                  <span class="badge badge-family">主推互锁模式</span>
-                </div>
-                <div class="policy-desc">
-                  不论是<strong>“先按开关、后识别人脸”</strong>还是<strong>“先识别人脸、后按开关”</strong>，只要在开关动作前后 <span id="policyWindowSecText" style="color: var(--accent); font-weight: 700;">5</span> 秒内完成自家人核验，门锁即刻安全打开。
-                </div>
-                <div class="policy-status-pill">
-                  <span style="color: var(--muted);">当前开关互锁状态：</span>
-                  <span id="lockPresenceStatus" style="font-weight: 700; color: var(--muted);">待命中 (无自家人)</span>
-                </div>
-              </div>
-
-              <!-- 策略 2: 人体 + 手势 -->
-              <div class="policy-box">
-                <div class="policy-header">
-                  <div class="policy-title">
-                    <span>✌️</span>
-                    <span>策略 2：自家人识别 + 专属手势</span>
-                  </div>
-                  <span class="badge badge-mode">动作核验</span>
-                </div>
-                <div class="policy-desc">
-                  当自家人站在门前时，面向摄像头比出 <strong>OK 手势</strong> 或 <strong>胜利手势 (V)</strong>，连续确认识别后自动开锁。
-                </div>
-                <div style="margin-top: 8px; font-size: 12px; color: var(--muted);">
-                  门前站立自家人面向摄像头比出手势，多帧确认后自动开门，防误触防假阳。
-                </div>
-              </div>
-
-              <!-- 策略 3: 声音核验 -->
-              <div class="policy-box">
-                <div class="policy-header">
-                  <div class="policy-title">
-                    <span>🎙️</span>
-                    <span>策略 3：语音核验与通行口令</span>
-                  </div>
-                  <span class="badge badge-warning">预留能力</span>
-                </div>
-                <div class="policy-desc">
-                  支持声纹识别与通行口令联动开门，功能就绪后即可在控制台启用。
-                </div>
-              </div>
+              <span class="badge badge-family" id="lockLastPassedBadge">无历史记录</span>
             </div>
-
-            <!-- 硬件链路卡片 -->
-            <div class="card">
-              <div class="card-title">
-                <div class="title-left">
-                  <span>🔗</span>
-                  <span>智能家居与开门联动说明</span>
-                </div>
+            <div class="showcase-row">
+              <div class="showcase-item">
+                <div class="item-label">核验身份 / 结果</div>
+                <div class="item-val" style="color: var(--accent);" id="lockLastPerson">-</div>
               </div>
-              <table>
-                <tbody>
-                  <tr>
-                    <td style="color: var(--muted); width: 180px;">门锁执行机构</td>
-                    <td><strong>智能门锁电控执行器 (光耦物理隔离，安全防冲击)</strong></td>
-                  </tr>
-                  <tr>
-                    <td style="color: var(--muted);">智能家居中枢联动</td>
-                    <td><code>Home Assistant 门锁自动化联动服务</code></td>
-                  </tr>
-                  <tr>
-                    <td style="color: var(--muted);">门厅人体存在传感器</td>
-                    <td>门厅微波人体存在传感器 (毫秒级靠近感知唤醒)</td>
-                  </tr>
-                  <tr>
-                    <td style="color: var(--muted);">安全阻断与自愈保护</td>
-                    <td>开门指令触发后自动复位闭锁，全方位保障用电安全</td>
-                  </tr>
-                </tbody>
-              </table>
+              <div class="showcase-item">
+                <div class="item-label">认证模式</div>
+                <div class="item-val" id="lockLastMode">-</div>
+              </div>
+              <div class="showcase-item">
+                <div class="item-label">触发动作标识</div>
+                <div class="item-val" style="color: var(--purple);" id="lockLastAction">-</div>
+              </div>
+              <div class="showcase-item">
+                <div class="item-label">事件发生时间</div>
+                <div class="item-val" style="color: var(--muted);" id="lockLastTime">-</div>
+              </div>
             </div>
           </div>
 
-          <!-- 右侧：最近开锁全景卡片与开门流水表 -->
-          <div>
-            <div class="card">
-              <div class="card-title">
-                <div class="title-left">
-                  <span>🔑</span>
-                  <span>最近一次开门事件全景详情</span>
-                </div>
-                <span class="badge badge-family" id="lockLastPassedBadge">无历史记录</span>
+          <!-- 门前在场与实体开关互锁状态卡片 -->
+          <div class="card" style="margin-bottom: 0;">
+            <div class="card-title">
+              <div class="title-left">
+                <span>📡</span>
+                <span>门前感知与开关互锁状态</span>
               </div>
-              <div class="showcase-row">
-                <div class="showcase-item">
-                  <div class="item-label">核验身份人员</div>
-                  <div class="item-val" style="color: var(--accent);" id="lockLastPerson">-</div>
+              <span class="badge badge-family">双向时序互锁</span>
+            </div>
+            <div class="policy-box" style="margin-bottom: 12px;">
+              <div class="policy-header">
+                <div class="policy-title">
+                  <span>🔘</span>
+                  <span>实体开关互锁容差期：<span id="policyWindowSecText" style="color: var(--accent); font-weight: 700;">5.0</span> 秒</span>
                 </div>
-                <div class="showcase-item">
-                  <div class="item-label">认证模式</div>
-                  <div class="item-val" id="lockLastMode">-</div>
-                </div>
-                <div class="showcase-item">
-                  <div class="item-label">动作触发标识</div>
-                  <div class="item-val" style="color: var(--purple);" id="lockLastAction">-</div>
-                </div>
-                <div class="showcase-item">
-                  <div class="item-label">开门发生时间</div>
-                  <div class="item-val" style="color: var(--muted);" id="lockLastTime">-</div>
-                </div>
+                <span class="badge badge-mode">自动判定</span>
+              </div>
+              <div class="policy-status-pill">
+                <span style="color: var(--muted);">当前开关互锁状态：</span>
+                <span id="lockPresenceStatus" style="font-weight: 700; color: var(--muted);">待命中 (无自家人)</span>
               </div>
             </div>
-
-            <!-- 专属开门流水表 -->
-            <div class="card">
-              <div class="card-title">
-                <div class="title-left">
-                  <span>📜</span>
-                  <span>门锁开锁安全审计流水</span>
-                </div>
-              </div>
-              <div class="table-container" style="max-height: 420px; overflow-y: auto;">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>开门时间</th>
-                      <th>人员</th>
-                      <th>认证模式</th>
-                      <th>触发动作</th>
-                      <th>耗时</th>
-                      <th>执行状态</th>
-                    </tr>
-                  </thead>
-                  <tbody id="lockHistoryTableBody">
-                    <tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">暂无开门流水记录</td></tr>
-                  </tbody>
-                </table>
-              </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 4px;">
+              <span style="font-size: 12.5px; color: var(--muted);">了解双向时序开锁与手势规则？</span>
+              <button class="btn btn-outline" data-jump="help" style="padding: 6px 14px; font-size: 12px;">
+                <span>📖 查看门锁规则说明 →</span>
+              </button>
             </div>
           </div>
         </div>
-      </section>
 
-      <!-- ============================================================
-           模块 2: 视觉核验与仿真测试 (Tab: test)
-           ============================================================ -->
-      <section id="tab_test" class="tab-content">
-        <div class="grid-2">
-          <!-- 左侧：图像上传与标注预览 -->
-          <div class="card">
-            <div class="card-title">
-              <div class="title-left">
-                <span>📸</span>
-                <span>门前照片测试与人员识别</span>
-              </div>
-              <button class="btn btn-outline" style="padding: 6px 12px;" id="btnLoadSample">加载示例门前照片</button>
+        <!-- 专属门锁审计流水表 (全宽排版，开锁/按键等待/安全拦截全量留痕) -->
+        <div class="card">
+          <div class="card-title">
+            <div class="title-left">
+              <span>📜</span>
+              <span>门锁操作与安全审计流水</span>
             </div>
-
-            <div class="upload-zone" id="uploadDropZone" onclick="document.getElementById('fileInput').click()">
-              <span class="upload-icon">📂</span>
-              <div style="font-weight: 700; font-size: 15px;">点击或拖拽门前照片至此体验识别效果</div>
-              <div class="upload-hint">支持 JPG, PNG, WEBP 格式，自动识别门前人员并匹配家庭成员档案</div>
-              <input type="file" id="fileInput" accept="image/*" style="display: none;" />
-            </div>
-
-            <div class="preview-box">
-              <div class="preview-placeholder" id="previewPlaceholder">
-                <span style="font-size: 36px;">🖼️</span>
-                <span>上传照片后，此处将呈现画面中的人员位置与识别标识</span>
-              </div>
-              <img id="annotatedImg" style="display: none;" alt="Annotated Output" />
-            </div>
-
-            <!-- 光耦继电器动画条 -->
-            <div class="relay-banner">
-              <div class="relay-indicator">
-                <div class="relay-led" id="relayLed"></div>
-                <div>
-                  <div style="font-weight: 700; font-size: 13px;" id="relayStatusTitle">门锁电控状态：安全闭锁 (待命)</div>
-                  <div style="font-size: 12px; color: var(--muted);" id="relayStatusDesc">核验通过时将触发自动开锁</div>
-                </div>
-              </div>
-              <button class="btn btn-primary" id="btnTriggerRelay">⚡ 模拟开门测试</button>
-            </div>
+            <span class="badge badge-mode">全量留痕 · 含按键等待与安全拦截</span>
           </div>
-
-          <!-- 右侧：纯净感知数据与仿真测试 -->
-          <div>
-            <div class="card">
-              <div class="card-title">
-                <div class="title-left">
-                  <span>📊</span>
-                  <span>门前感知与识别明细</span>
-                </div>
-                <span class="badge badge-mode" id="latencyBadge">识别耗时: 0 ms</span>
-              </div>
-
-              <div class="grid-3" style="margin-bottom: 16px;">
-                <div class="metric-tile">
-                  <span class="tile-label">画面总人数</span>
-                  <div class="tile-value" id="totalPersonsVal">0</div>
-                </div>
-                <div class="metric-tile">
-                  <span class="tile-label">自家人数</span>
-                  <div class="tile-value" id="familyCountVal" style="color: var(--success);">0</div>
-                </div>
-                <div class="metric-tile">
-                  <span class="tile-label">陌生人数</span>
-                  <div class="tile-value" id="strangerCountVal" style="color: var(--danger);">0</div>
-                </div>
-              </div>
-
-              <div style="font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 8px;">检测到的人员与识别详情：</div>
-              <div id="personsListContainer" style="max-height: 180px; overflow-y: auto;">
-                <div style="color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0;">暂无数据，请先上传照片测试</div>
-              </div>
-            </div>
-
-            <!-- 三模式仿真交互 -->
-            <div class="card">
-              <div class="card-title">
-                <div class="title-left">
-                  <span>🎛️</span>
-                  <span>三种开门方式体验</span>
-                </div>
-              </div>
-
-              <div class="sim-panel">
-                <div class="sim-btn-card" id="btnSimMode1">
-                  <div class="sim-icon">✌️</div>
-                  <h4>方式 1: 人体 + 手势</h4>
-                  <p>门前自家人匹配 + 比出 OK/胜利手势开门</p>
-                </div>
-                <div class="sim-btn-card" id="btnSimMode2">
-                  <div class="sim-icon">🔘</div>
-                  <h4>方式 2: 人体 + 智能开关</h4>
-                  <p>按门厅开关 + 前后 5 秒内识别到自家人即开门</p>
-                </div>
-                <div class="sim-btn-card" id="btnSimMode3">
-                  <div class="sim-icon">🎙️</div>
-                  <h4>方式 3: 声音核验</h4>
-                  <p>声纹比对 + 口令内容识别 (已保留接口)</p>
-                </div>
-              </div>
-
-              <div style="margin-top: 14px; padding: 12px; background: #0c121c; border-radius: 8px; border: 1px solid #1c2738; font-size: 13px;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                  <span style="color: var(--muted);">门前自家人在场有效期：</span>
-                  <strong id="presenceWindowTimer">未激活 (0s)</strong>
-                </div>
-                <div style="font-size: 12px; color: var(--muted);" id="presenceWindowDesc">
-                  💡 互锁说明：在按下开关前后 5 秒内识别到自家人，系统即刻确认开门！
-                </div>
-              </div>
-            </div>
+          <div class="table-container" style="max-height: 440px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>事件时间</th>
+                  <th>人员 / 对象</th>
+                  <th>认证模式</th>
+                  <th>触发动作与说明</th>
+                  <th>耗时</th>
+                  <th>执行状态</th>
+                </tr>
+              </thead>
+              <tbody id="lockHistoryTableBody">
+                <tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">暂无门锁操作与审计流水记录</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -543,6 +387,320 @@
           </div>
         </div>
       </section>
+
+      <!-- ============================================================
+           模块 5: 帮助与门锁规则说明 (Tab: help)
+           ============================================================ -->
+      <section id="tab_help" class="tab-content">
+        <!-- 帮助中心全景 Hero 面板 -->
+        <div class="help-hero-banner">
+          <div class="help-hero-header">
+            <div class="help-hero-icon">📖</div>
+            <div class="help-hero-text">
+              <h2>智能门锁开锁策略与互锁规则指南</h2>
+              <p>
+                MyHome AI 原生系统采用<strong>「自研轻量端侧生物特征核验 + 门厅实体开关双向时序互锁」</strong>与<strong>「防误触姿态手势识别」</strong>多重防御机制，彻底杜绝传统人脸锁“走廊路过误开、照片翻拍盗刷、恶意贴门假阳”等隐患，保障家庭物理入户第一道安全防线。
+              </p>
+            </div>
+          </div>
+
+          <div class="help-metrics-strip">
+            <div class="help-metric-chip">
+              <span class="chip-label">智能开关互锁窗口期</span>
+              <span class="chip-val" id="helpWindowSecText">5.0 秒</span>
+            </div>
+            <div class="help-metric-chip">
+              <span class="chip-label">开锁电控脉冲时长</span>
+              <span class="chip-val" style="color: var(--purple);">500 ms (自愈断电)</span>
+            </div>
+            <div class="help-metric-chip">
+              <span class="chip-label">防重触发冷却保护</span>
+              <span class="chip-val" style="color: var(--warning);">10.0 秒</span>
+            </div>
+            <div class="help-metric-chip">
+              <span class="chip-label">累计成功开门审计</span>
+              <span class="chip-val" id="helpUnlockCount" style="color: var(--success);">0 次</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 三大认证策略卡片栅格 -->
+        <div class="help-strategy-grid">
+          <!-- 策略 1 -->
+          <div class="help-strategy-card">
+            <div class="help-strategy-header">
+              <div class="help-strategy-title">
+                <span>🔘</span>
+                <span>策略 1：自家人识别 + 实体开关</span>
+              </div>
+              <span class="badge badge-family">主推互锁模式</span>
+            </div>
+            <div class="help-strategy-desc">
+              门锁核心日常模式。开锁需同时满足<strong>“确认为家庭成员”</strong>与<strong>“产生按键物理意图”</strong>双因子，在开关动作前后 <strong>5 秒窗口内</strong> 完成判定。
+            </div>
+            <ul class="help-strategy-points">
+              <li><span class="bullet">✔</span><span><strong>双向时序容差：</strong>先按后识或先识后按均可秒级触发开锁</span></li>
+              <li><span class="bullet">✔</span><span><strong>防陌生人试探：</strong>非自家人按压开关绝不开门，杜绝误动</span></li>
+              <li><span class="bullet">✔</span><span><strong>防路过误开：</strong>自家人在门前路过或整理鞋带不会误开锁</span></li>
+            </ul>
+          </div>
+
+          <!-- 策略 2 -->
+          <div class="help-strategy-card">
+            <div class="help-strategy-header">
+              <div class="help-strategy-title">
+                <span>✌️</span>
+                <span>策略 2：自家人识别 + 专属手势</span>
+              </div>
+              <span class="badge badge-mode">免接触动作核验</span>
+            </div>
+            <div class="help-strategy-desc">
+              当双手提物、倒垃圾、手上沾水或不方便触摸开关时，站在门前面向摄像头比出 <strong>OK 手势</strong> 或 <strong>胜利手势 (V)</strong> 即可触发开锁。
+            </div>
+            <ul class="help-strategy-points">
+              <li><span class="bullet">✔</span><span><strong>支持手势：</strong>支持 👌 OK 手势 与 ✌️ 胜利/剪刀手手势</span></li>
+              <li><span class="bullet">✔</span><span><strong>连续帧防抖：</strong>需持续稳定检测 5 帧 (约 0.3 秒) 方可确认</span></li>
+              <li><span class="bullet">✔</span><span><strong>非接触通行：</strong>手上拿满外卖或快递也能从容进门</span></li>
+            </ul>
+          </div>
+
+          <!-- 策略 3 -->
+          <div class="help-strategy-card">
+            <div class="help-strategy-header">
+              <div class="help-strategy-title">
+                <span>🎙️</span>
+                <span>策略 3：语音核验与通行口令</span>
+              </div>
+              <span class="badge badge-warning">声纹预留能力</span>
+            </div>
+            <div class="help-strategy-desc">
+              支持基于 3D-Speaker CAM++ 预训练声纹模型的高精度 1:1 比对，配合 VAD 智能语音端点检测与家庭自定义暗号口令。
+            </div>
+            <ul class="help-strategy-points">
+              <li><span class="bullet">✔</span><span><strong>声纹余弦阈值：</strong>1:1 余弦相似度 0.60 判定同一人</span></li>
+              <li><span class="bullet">✔</span><span><strong>能量过滤：</strong>VAD 阈值 0.015 RMS，过滤背景杂音</span></li>
+              <li><span class="bullet">✔</span><span><strong>口令联动：</strong>可根据需要无缝开启声纹与通行暗号开门</span></li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- 详细时序模式对比与硬件安全 -->
+        <div class="grid-2">
+          <!-- 左侧：双向互锁时序图解 -->
+          <div class="card">
+            <div class="card-title">
+              <div class="title-left">
+                <span>⏱️</span>
+                <span>智能开关前后 5 秒“双向互锁”时序原理</span>
+              </div>
+              <span class="badge badge-family">灵活无死角</span>
+            </div>
+            <p style="font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 14px;">
+              传统的严格时序系统常常要求用户“必须先做 A 再做 B”，稍有差错便开锁失败。MyHome AI 采用双向容差状态机设计，包容用户的自然行为习惯：
+            </p>
+
+            <div class="sequence-comparison-grid">
+              <!-- 时序 A -->
+              <div class="sequence-card">
+                <div class="sequence-card-title">
+                  <span>🅰️</span>
+                  <span>时序模式 A：先按开关，后识别人脸</span>
+                </div>
+                <div class="sequence-steps">
+                  <div class="sequence-step-item">
+                    <span class="sequence-step-num">1</span>
+                    <span>回家走到门厅，先随手按下实体开关</span>
+                  </div>
+                  <div class="sequence-arrow">↓ 激活 5.0 秒互锁有效等待期</div>
+                  <div class="sequence-step-item">
+                    <span class="sequence-step-num">2</span>
+                    <span>走到门前摄像头视野内完成自家人核验</span>
+                  </div>
+                  <div class="sequence-arrow">↓ 状态机判定双因子命中</div>
+                  <div class="sequence-step-item">
+                    <span class="sequence-step-num">3</span>
+                    <span style="color: var(--success); font-weight: 700;">触发开门，门锁即刻弹开！</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 时序 B -->
+              <div class="sequence-card">
+                <div class="sequence-card-title">
+                  <span>🅱️</span>
+                  <span>时序模式 B：先识别人脸，后按开关</span>
+                </div>
+                <div class="sequence-steps">
+                  <div class="sequence-step-item">
+                    <span class="sequence-step-num">1</span>
+                    <span>走到门前，摄像头已成功识别出自家人</span>
+                  </div>
+                  <div class="sequence-arrow">↓ 产生 5.0 秒在场置信窗口</div>
+                  <div class="sequence-step-item">
+                    <span class="sequence-step-num">2</span>
+                    <span>随后伸手按下门厅实体开关确认开门意图</span>
+                  </div>
+                  <div class="sequence-arrow">↓ 状态机判定双因子命中</div>
+                  <div class="sequence-step-item">
+                    <span class="sequence-step-num">3</span>
+                    <span style="color: var(--success); font-weight: 700;">触发开门，门锁即刻弹开！</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top: 12px; padding: 12px 14px; background: #080d16; border-radius: 8px; border: 1px solid #162232; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center;">
+              <span>当前系统感知在场状态：</span>
+              <span id="helpPresenceStatus" style="font-weight: 700;">待命中 (无自家人)</span>
+            </div>
+          </div>
+
+          <!-- 右侧：硬件链路与安全保障 -->
+          <div class="card">
+            <div class="card-title">
+              <div class="title-left">
+                <span>🔗</span>
+                <span>硬件链路与物理安全自愈机制</span>
+              </div>
+              <span class="badge badge-mode">硬件层防护</span>
+            </div>
+            <table>
+              <tbody>
+                <tr>
+                  <td style="color: var(--muted); width: 160px;">门锁执行机构</td>
+                  <td><strong>智能门锁电控执行器 (光耦物理隔离，安全防浪涌)</strong></td>
+                </tr>
+                <tr>
+                  <td style="color: var(--muted);">电控动作机制</td>
+                  <td><code style="color: var(--purple); font-weight: 700;">500ms 脉冲自恢复闭锁</code>，杜绝持续通电与线圈发热卡死</td>
+                </tr>
+                <tr>
+                  <td style="color: var(--muted);">智能家居中枢联动</td>
+                  <td><code>Home Assistant 自动化 Webhook 专用服务通道</code></td>
+                </tr>
+                <tr>
+                  <td style="color: var(--muted);">门厅微波雷达传感器</td>
+                  <td>24GHz 毫米波人体存在传感器，1.8m 内靠近毫秒级唤醒</td>
+                </tr>
+                <tr>
+                  <td style="color: var(--muted);">防连续误按冷却保护</td>
+                  <td>开锁成功后强制进入 <strong>10.0 秒防抖保护期</strong>，防止频繁误触</td>
+                </tr>
+                <tr>
+                  <td style="color: var(--muted);">可疑人员与遮挡告警</td>
+                  <td>陌生人门厅逗留超 10 秒或恶意遮挡摄像头即刻抓拍并告警</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 常见问题与排查指南 (FAQ) -->
+        <div class="card">
+          <div class="card-title">
+            <div class="title-left">
+              <span>❓</span>
+              <span>常见使用问题与故障排查指南 (FAQ)</span>
+            </div>
+            <span class="badge badge-family">快速指南</span>
+          </div>
+
+          <div class="faq-grid">
+            <div class="faq-card">
+              <h4><span>💡</span> 我按了门厅开关，为什么门锁没有反应？</h4>
+              <p>
+                系统的核心安全逻辑是<strong>“自家人身份 + 实体开关双向互锁”</strong>。单独按开关不会开门，必须在按开关的前后 5 秒内，人脸出现在摄像头视野中并完成核验。如光线较暗，请稍作停留或借助走廊照明。
+              </p>
+            </div>
+
+            <div class="faq-card">
+              <h4><span>🛡️</span> 如果有陌生人按门厅开关，会不会开门？</h4>
+              <p>
+                <strong>绝对不会。</strong>陌生人或快递员按压开关时，摄像头无法比对到任何已录入的家庭成员特征，互锁判定条件不成立，开门指令将被强制拦截，并在日志中记录陌生人审计流水。
+              </p>
+            </div>
+
+            <div class="faq-card">
+              <h4><span>⚡</span> 刚开锁进门后，再次按开关为什么暂时无法开锁？</h4>
+              <p>
+                为保护门锁物理电机与继电器线圈，防止儿童反复按玩或家人进出误碰，系统设计了 <strong>10.0 秒的开门冷却防抖保护</strong>。冷却时间过后即可恢复正常触发。
+              </p>
+            </div>
+
+            <div class="faq-card">
+              <h4><span>👥</span> 怎样为家人或临时亲友录入开门权限？</h4>
+              <p>
+                进入左侧导航栏的<strong>【智能感知与核验】->【家庭成员管理】</strong>，点击“➕ 添加家庭成员照片”，填入人名并上传一张清晰正面自然照片，原生特征提取网即可毫秒级热更新生效，无需重启服务。
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== 模块 5: 人脸抓拍快照 ==================== -->
+      <section id="tab_snapshots" class="tab-content">
+        <div class="snapshot-policy-banner">
+          <div class="snapshot-meta-card">
+            <div class="snapshot-meta-label">
+              <span>📂 快照存储根目录 (config.yaml)</span>
+              <span class="badge badge-mode">按身份分目录</span>
+            </div>
+            <div class="snapshot-meta-value" id="snapRootDirText">./output/snapshots</div>
+            <div class="snapshot-meta-sub" id="snapAbsRootDirText">自家人按姓名独立文件夹，陌生人存放在独立子文件夹</div>
+          </div>
+
+          <div class="snapshot-meta-card">
+            <div class="snapshot-meta-label">
+              <span>📦 容量上限与滚动清理</span>
+              <span class="badge badge-family">自动淘汰</span>
+            </div>
+            <div class="snapshot-meta-value" id="snapCountText">0 / 500 张</div>
+            <div class="snapshot-progress-track">
+              <div class="snapshot-progress-fill" id="snapCapacityFill" style="width: 0%;"></div>
+            </div>
+            <div class="snapshot-meta-sub" id="snapPolicyRuleText">超过 500 张自动一次性清理最早的 100 张</div>
+          </div>
+
+          <div class="snapshot-meta-card">
+            <div class="snapshot-meta-label">
+              <span>⏱️ 抓拍最小间隔配置</span>
+              <span class="badge badge-mode" id="snapConfigStatusBadge">已同步</span>
+            </div>
+            <div class="snapshot-meta-value">当前生效：≥ <span id="snapIntervalValueDisplay" style="color: var(--accent);">1.0</span> 秒间隔</div>
+            <div class="snap-interval-editor">
+              <div class="snap-interval-input-wrap">
+                <input type="number" id="snapIntervalInput" class="snap-interval-input" min="0.2" max="3600" step="0.5" value="1.0" />
+                <span class="snap-interval-unit">秒</span>
+              </div>
+              <div class="snap-preset-row" id="snapIntervalPresets">
+                <button type="button" class="snap-preset-chip" data-preset-sec="0.5">0.5s</button>
+                <button type="button" class="snap-preset-chip active" data-preset-sec="1.0">1.0s</button>
+                <button type="button" class="snap-preset-chip" data-preset-sec="2.0">2.0s</button>
+                <button type="button" class="snap-preset-chip" data-preset-sec="5.0">5.0s</button>
+                <button type="button" class="snap-preset-chip" data-preset-sec="10.0">10s</button>
+              </div>
+            </div>
+            <div class="snapshot-meta-sub" id="snapIntervalRuleText">选择或输入间隔后，点击页面右上角「💾 保存配置」生效</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="snapshot-toolbar">
+            <div class="snapshot-folder-pills" id="snapFolderPills">
+              <!-- 动态渲染：全部目录 / 爸爸 / 淘淘 / 陌生人 -->
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <button class="btn btn-outline btn-sm" id="btnRefreshSnapshots">🔄 刷新快照</button>
+              <button class="btn btn-outline btn-sm" id="btnClearCurrentSubdir" style="display: none;">🧹 清空当前目录</button>
+              <button class="btn btn-danger btn-sm" id="btnClearAllSnapshots">🗑️ 清空全部快照</button>
+            </div>
+          </div>
+
+          <div class="snapshot-grid" id="snapshotsGrid">
+            <!-- 动态渲染快照缩略图网格 -->
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -571,6 +729,22 @@
       <div style="display: flex; justify-content: flex-end; gap: 10px;">
         <button class="btn btn-outline" id="btnCancelUploadModal">取消</button>
         <button class="btn btn-primary" id="btnSubmitUploadPhoto">确认上传并热更新特征</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 快照高清预览 模态弹窗 -->
+  <div class="modal-overlay" id="snapshotPreviewModal">
+    <div class="modal-card" style="max-width: 780px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div>
+          <h3 id="snapshotPreviewTitle" style="font-size: 16px; font-weight: 700;">📸 人脸抓拍快照预览</h3>
+          <div id="snapshotPreviewMeta" style="font-size: 12px; color: var(--muted); margin-top: 4px;"></div>
+        </div>
+        <button id="btnCloseSnapshotPreview" style="background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer;">✕</button>
+      </div>
+      <div style="text-align: center; background: #090d16; border-radius: 10px; overflow: hidden; border: 1px solid #24344d;">
+        <img id="snapshotPreviewImg" style="max-width: 100%; max-height: 70vh; display: block; margin: 0 auto;" alt="Snapshot Preview" />
       </div>
     </div>
   </div>

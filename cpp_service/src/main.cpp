@@ -46,6 +46,49 @@ void safeSocketWriteBinary(int fd, const std::vector<uchar>& data) {
     }
 }
 
+std::string urlDecode(const std::string& str) {
+    std::string out;
+    out.reserve(str.size());
+    for (size_t i = 0; i < str.size(); ++i) {
+        if (str[i] == '%' && i + 2 < str.size()) {
+            auto hexVal = [](char c) -> int {
+                if (c >= '0' && c <= '9') return c - '0';
+                if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+                if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                return -1;
+            };
+            int hi = hexVal(str[i + 1]);
+            int lo = hexVal(str[i + 2]);
+            if (hi >= 0 && lo >= 0) {
+                out.push_back(static_cast<char>((hi << 4) | lo));
+                i += 2;
+                continue;
+            }
+        } else if (str[i] == '+') {
+            out.push_back(' ');
+            continue;
+        }
+        out.push_back(str[i]);
+    }
+    return out;
+}
+
+std::string getQueryParam(const std::string& query, const std::string& key) {
+    if (query.empty() || key.empty()) return "";
+    std::string prefix = key + "=";
+    size_t pos = 0;
+    while (pos < query.size()) {
+        size_t amp = query.find('&', pos);
+        std::string pair = (amp == std::string::npos) ? query.substr(pos) : query.substr(pos, amp - pos);
+        if (pair.rfind(prefix, 0) == 0) {
+            return urlDecode(pair.substr(prefix.size()));
+        }
+        if (amp == std::string::npos) break;
+        pos = amp + 1;
+    }
+    return "";
+}
+
 } // namespace
 
 void runHttpServer(std::shared_ptr<myhome::VerifyServiceCoordinator> coordinator, int port) {
@@ -195,13 +238,7 @@ void runHttpServer(std::shared_ptr<myhome::VerifyServiceCoordinator> coordinator
 
             // 2. 照片缩略图流送 /api/photo?file=xxx (遵循 LoD)
             if (path == "/api/photo") {
-                std::string file_param;
-                auto f_pos = query_str.find("file=");
-                if (f_pos != std::string::npos) {
-                    file_param = query_str.substr(f_pos + 5);
-                    auto amp_pos = file_param.find('&');
-                    if (amp_pos != std::string::npos) file_param = file_param.substr(0, amp_pos);
-                }
+                std::string file_param = getQueryParam(query_str, "file");
                 auto bin = coordinator->getPhotoBinary(file_param);
                 if (!bin.empty()) {
                     std::ostringstream hdr;
@@ -209,6 +246,29 @@ void runHttpServer(std::shared_ptr<myhome::VerifyServiceCoordinator> coordinator
                         << "Content-Type: image/jpeg\r\n"
                         << "Content-Length: " << bin.size() << "\r\n"
                         << "Cache-Control: public, max-age=86400\r\n"
+                        << "Access-Control-Allow-Origin: *\r\n"
+                        << "Connection: close\r\n\r\n";
+                    safeSocketWrite(client_fd, hdr.str());
+                    safeSocketWriteBinary(client_fd, bin);
+                } else {
+                    std::string nf = "HTTP/1.1 404 Not Found\r\n\r\n";
+                    safeSocketWrite(client_fd, nf);
+                }
+                ::close(client_fd);
+                return;
+            }
+
+            // 2.5 人脸抓拍快照图片流送 /api/snapshot_file?sub=xxx&file=yyy
+            if (path == "/api/snapshot_file") {
+                std::string sub_param = getQueryParam(query_str, "sub");
+                std::string file_param = getQueryParam(query_str, "file");
+                auto bin = coordinator->getSnapshotBinary(sub_param, file_param);
+                if (!bin.empty()) {
+                    std::ostringstream hdr;
+                    hdr << "HTTP/1.1 200 OK\r\n"
+                        << "Content-Type: image/jpeg\r\n"
+                        << "Content-Length: " << bin.size() << "\r\n"
+                        << "Cache-Control: public, max-age=3600\r\n"
                         << "Access-Control-Allow-Origin: *\r\n"
                         << "Connection: close\r\n\r\n";
                     safeSocketWrite(client_fd, hdr.str());
@@ -284,7 +344,7 @@ void runHttpServer(std::shared_ptr<myhome::VerifyServiceCoordinator> coordinator
                 }
             } else if (path == "/api/verify") {
                 resp_json = coordinator->requestVerifySync();
-            } else if (path == "/api/start_verify") {
+            } else if (path == "/api/start_verify" || path == "/api/verify_request") {
                 resp_json = coordinator->requestVerifyAsync();
             } else if (path == "/api/stop_verify") {
                 resp_json = coordinator->requestStopVerify();
@@ -292,6 +352,26 @@ void runHttpServer(std::shared_ptr<myhome::VerifyServiceCoordinator> coordinator
                 resp_json = coordinator->triggerManualRelayTest();
             } else if (path == "/api/reload") {
                 resp_json = coordinator->reloadGallery();
+            } else if (path == "/api/snapshots") {
+                resp_json = coordinator->getSnapshotsSummary();
+            } else if (path == "/api/snapshot_config") {
+                try {
+                    auto j = json::parse(req_body);
+                    resp_json = coordinator->updateSnapshotSettings(j);
+                } catch (...) {
+                    resp_json = json{{"status", "error"}, {"error", "JSON 请求体格式不正确"}};
+                }
+            } else if (path == "/api/delete_snapshot") {
+                try {
+                    auto j = json::parse(req_body);
+                    std::string sub = j.value("subdir", "");
+                    std::string file = j.value("file", "");
+                    bool clear_subdir = j.value("clear_subdir", false);
+                    bool clear_all = j.value("clear_all", false);
+                    resp_json = coordinator->deleteSnapshot(sub, file, clear_subdir, clear_all);
+                } catch (...) {
+                    resp_json = json{{"error", "Invalid payload"}};
+                }
             } else {
                 resp_json = coordinator->getStatus();
             }
@@ -335,7 +415,23 @@ int main(int argc, char** argv) {
     std::string unlock_webhook = cfg["home_assistant"]["unlock_webhook_id"].as<std::string>("ai_door_unlock_event");
     std::string cam_source = cfg["vision"]["camera_source"].as<std::string>("0");
     std::string db_dir = cfg["vision"]["face"]["db_dir"].as<std::string>("./vision/db/faces");
+    std::string face_det_model_path = "./vision/models/face_detection_yunet_2023mar.onnx";
+    if (cfg["vision"]["face"] && cfg["vision"]["face"]["det_model_path"]) {
+        face_det_model_path = cfg["vision"]["face"]["det_model_path"].as<std::string>(face_det_model_path);
+    }
     int confirm_frames = cfg["vision"]["gesture"]["confirm_frames"].as<int>(3);
+
+    myhome::SnapshotConfig snap_cfg;
+    snap_cfg.config_file_path = "./config.yaml";
+    if (cfg["vision"]["snapshot"]) {
+        const auto& sc = cfg["vision"]["snapshot"];
+        if (sc["enabled"]) snap_cfg.enabled = sc["enabled"].as<bool>(true);
+        if (sc["root_dir"]) snap_cfg.root_dir = sc["root_dir"].as<std::string>("./output/snapshots");
+        if (sc["stranger_subdir"]) snap_cfg.stranger_subdir = sc["stranger_subdir"].as<std::string>("陌生人");
+        if (sc["min_interval_sec"]) snap_cfg.min_interval_sec = sc["min_interval_sec"].as<double>(1.0);
+        if (sc["max_total"]) snap_cfg.max_total = sc["max_total"].as<size_t>(500);
+        if (sc["cleanup_batch"]) snap_cfg.cleanup_batch = sc["cleanup_batch"].as<size_t>(100);
+    }
 
     std::vector<std::string> allowed_gestures = {"OK", "VICTORY", "OPEN_PALM", "THUMB_UP"};
     if (cfg["vision"]["gesture"]["unlock_gestures"]) {
@@ -351,6 +447,10 @@ int main(int argc, char** argv) {
     std::cout << "   • 模式 2: 人体 + 智能开关 (C++ 统一控制开门，前后 " << switch_face_window_sec << "s 互锁判定)" << std::endl;
     std::cout << "   • 模式 3: 声音核验 (接口预留)" << std::endl;
     std::cout << "   • 防抖/冷却: 确认帧数=" << confirm_frames << ", 开门冷却=" << unlock_cooldown_sec << "s" << std::endl;
+    std::cout << "   • 人脸快照: " << (snap_cfg.enabled ? "已开启" : "已关闭")
+              << " | 根目录=" << snap_cfg.root_dir
+              << " | 间隔>=" << snap_cfg.min_interval_sec << "s"
+              << " | 上限=" << snap_cfg.max_total << "张 (满后清最早" << snap_cfg.cleanup_batch << "张)" << std::endl;
     std::cout << "========================================================================" << std::endl;
 
     curl_global_init(CURL_GLOBAL_ALL);
@@ -360,7 +460,8 @@ int main(int argc, char** argv) {
         "./vision/models/yolov8n.onnx",
         "./vision/models/person_classifier.onnx",
         "./vision/models/classes.json",
-        db_dir);
+        db_dir,
+        face_det_model_path);
 
     auto gesture_engine = std::make_shared<myhome::CppGestureEngine>(
         "./vision/models/palm_detection_mediapipe_2023feb.onnx",
@@ -381,6 +482,7 @@ int main(int argc, char** argv) {
     // 装配核心协调器 (Facade Pattern - 遵循 LoD, SRP, DIP)
     auto coordinator = std::make_shared<myhome::VerifyServiceCoordinator>(
         person_engine, gesture_engine, composite_policy, actuator, cam_source, active_window_sec);
+    coordinator->configureSnapshots(snap_cfg);
 
     // 自检模式
     for (int i = 1; i < argc; ++i) {

@@ -14,8 +14,21 @@
 #include <condition_variable>
 #include <atomic>
 #include <chrono>
+#include <optional>
+#include <cstdint>
 
 namespace myhome {
+
+// 人脸抓拍快照策略配置
+struct SnapshotConfig {
+    bool enabled = true;
+    std::string root_dir = "./output/snapshots";
+    std::string stranger_subdir = "陌生人";
+    double min_interval_sec = 1.0;
+    size_t max_total = 500;
+    size_t cleanup_batch = 100;
+    std::string config_file_path = "./config.yaml";
+};
 
 // 门禁核心协调器 (Facade & Coordinator Pattern - 遵循 SRP, OCP, DIP, LoD)
 class VerifyServiceCoordinator {
@@ -65,9 +78,41 @@ public:
     nlohmann::json deletePhoto(const std::string& filename);
     nlohmann::json reloadGallery();
 
+    // 人脸自动抓拍快照配置与管理接口
+    void configureSnapshots(const SnapshotConfig& cfg);
+    nlohmann::json updateSnapshotSettings(const nlohmann::json& req);
+    nlohmann::json getSnapshotsSummary();
+    std::vector<uchar> getSnapshotBinary(const std::string& subdir, const std::string& filename);
+    nlohmann::json deleteSnapshot(const std::string& subdir,
+                                  const std::string& filename,
+                                  bool clear_subdir = false,
+                                  bool clear_all = false);
+
 private:
-    void recordUnlockEvent(const UnlockDecision& decision);
-    void extendVerifyTimeout(double window_sec);
+    struct PendingSwitchAudit {
+        uint64_t event_id = 0;
+        std::chrono::steady_clock::time_point pressed_at{};
+        std::chrono::steady_clock::time_point deadline{};
+        double window_sec = 5.0;
+        bool saw_stranger = false;
+        bool camera_unavailable = false;
+    };
+
+    uint64_t recordAuditEvent(UnlockDecision decision,
+                              const std::string& status,
+                              const std::string& detail,
+                              bool increment_unlock);
+    void resolvePendingSwitchUnlock(UnlockDecision decision, bool actuator_executed);
+    void finalizeExpiredSwitchLocked(std::chrono::steady_clock::time_point now);
+    void pushHistoryLocked(nlohmann::json item);
+    nlohmann::json* findHistoryByIdLocked(uint64_t id);
+    void extendVerifyTimeoutLocked(double window_sec);
+
+    // 人脸快照内部辅助方法
+    void maybeSaveFaceSnapshot(const cv::Mat& frame, const FrameRecognitionResult& frame_res);
+    void ensureSnapshotSubdirsLocked();
+    size_t scanSnapshotCountLocked() const;
+    void enforceSnapshotRetentionLocked();
 
     std::shared_ptr<CppPersonEngine> person_engine_;
     std::shared_ptr<CppGestureEngine> gesture_engine_;
@@ -98,9 +143,17 @@ private:
     bool live_has_stranger_ = false;
 
     // 审计与统计
+    uint64_t next_event_id_ = 1;
+    std::optional<PendingSwitchAudit> pending_switch_;
     UnlockDecision last_decision_;
     std::vector<nlohmann::json> history_;
     std::atomic<int> unlock_count_{0};
+
+    // 人脸抓拍快照状态与限流控制
+    mutable std::mutex snapshot_mtx_;
+    SnapshotConfig snapshot_cfg_;
+    std::chrono::steady_clock::time_point last_snapshot_steady_{};
+    size_t cached_snapshot_count_ = 0;
 };
 
 } // namespace myhome

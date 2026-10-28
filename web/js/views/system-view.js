@@ -5,7 +5,7 @@
  * ==============================================================================
  */
 
-import { store } from '../store.js';
+import { store, formatAuditPresentation } from '../store.js';
 
 export class SystemView {
   constructor() {
@@ -45,14 +45,18 @@ export class SystemView {
         this.historyTableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 24px;">暂无历史记录</td></tr>';
       } else {
         st.history.forEach(h => {
+          const pres = formatAuditPresentation(h);
           const tr = document.createElement('tr');
           tr.innerHTML = `
             <td>${h.time}</td>
-            <td><strong>${h.person}</strong></td>
+            <td><strong style="${pres.personStyle}">${h.person}</strong></td>
             <td><span class="badge badge-mode">${h.auth_mode || '多模态'}</span></td>
-            <td><code style="color: var(--purple); font-weight: 700;">${h.action || '开门'}</code></td>
+            <td>
+              <div style="color: var(--purple); font-weight: 700;">${pres.actionLabel}</div>
+              ${pres.detail ? `<div style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">${pres.detail}</div>` : ''}
+            </td>
             <td>${h.elapsed_ms}ms</td>
-            <td><span class="badge badge-family">开门成功 (500ms脉冲)</span></td>
+            <td><span class="badge ${pres.badgeClass}">${pres.badgeText}</span></td>
           `;
           this.historyTableBody.appendChild(tr);
         });

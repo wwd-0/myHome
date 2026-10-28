@@ -3,6 +3,7 @@
 #include "domain_types.hpp"
 #include <opencv2/opencv.hpp>
 #include <opencv2/dnn.hpp>
+#include <opencv2/objdetect/face.hpp>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
@@ -17,7 +18,8 @@ public:
     CppPersonEngine(const std::string& yolo_or_url = "./vision/models/yolov8n.onnx",
                     const std::string& classifier_or_db = "./vision/models/person_classifier.onnx",
                     const std::string& classes_json_path = "./vision/models/classes.json",
-                    const std::string& db_dir = "./vision/db/faces");
+                    const std::string& db_dir = "./vision/db/faces",
+                    const std::string& face_det_model_path = "./vision/models/face_detection_yunet_2023mar.onnx");
     ~CppPersonEngine();
 
     // 检查并确保模型已就绪 (纯 C++ 原生，无需 Python 服务)
@@ -71,10 +73,12 @@ private:
     std::string classifier_model_path_;
     std::string classes_json_path_;
     std::string db_dir_;
+    std::string face_det_model_path_;
 
     std::vector<std::string> classes_;
     cv::dnn::Net yolo_net_;
     cv::dnn::Net classifier_net_;
+    cv::Ptr<cv::FaceDetectorYN> face_detector_;
     mutable std::mutex net_mtx_;
 };
 

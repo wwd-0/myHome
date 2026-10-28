@@ -89,6 +89,27 @@ export class ApiClient {
   async reloadDb() {
     return this.request('/api/reload', { method: 'POST', body: '{}' });
   }
+
+  // 获取人脸自动抓拍快照汇总与分目录文件列表
+  async getSnapshots() {
+    return this.request('/api/snapshots');
+  }
+
+  // 在线修改抓拍间隔等快照配置并持久化写入 config.yaml
+  async updateSnapshotConfig(payload = {}) {
+    return this.request('/api/snapshot_config', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  // 删除单张快照 / 清空指定子目录 / 清空全部快照
+  async deleteSnapshot(payload = {}) {
+    return this.request('/api/delete_snapshot', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
 }
 
 export const api = new ApiClient();

@@ -37,6 +37,8 @@ public:
 
     // 开关等待自家人状态查询
     bool isWaitingForPerson(std::chrono::steady_clock::time_point now) const;
+    double getWaitingRemainingSec(std::chrono::steady_clock::time_point now) const;
+    void clearSwitchWait();
 
 private:
     double window_sec_;

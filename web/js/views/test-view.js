@@ -89,7 +89,10 @@ export class TestView {
       }
       const timerEl = document.getElementById('presenceWindowTimer');
       if (timerEl) {
-        if (st.family_presence_active) {
+        if (st.switch_waiting_active) {
+          timerEl.innerText = `🟡 开关等待识人 (${st.switch_waiting_remaining_sec}s)`;
+          timerEl.style.color = 'var(--warning)';
+        } else if (st.family_presence_active) {
           timerEl.innerText = `有效 (${st.presence_remaining_sec}s) [${st.last_verified_family || ''}]`;
           timerEl.style.color = 'var(--success)';
         } else {
@@ -186,7 +189,12 @@ export class TestView {
 
     // 若有自家人，点亮开门联动
     if (res.family_count > 0 && res.family_members && res.family_members.length > 0) {
-      window.showToast?.(`✅ 识别到自家人：${res.family_members.join('、')}！在场有效期已激活`);
+      if (res.switch_interlock_unlocked) {
+        window.showToast?.(`🎉 开关双向互锁命中！识别到自家人【${res.family_members.join('、')}】，门锁已自动打开！`);
+        this.lockView?.animateUnlock(res.family_members[0], '人体 + 智能开关');
+      } else {
+        window.showToast?.(`✅ 识别到自家人：${res.family_members.join('、')}！在场有效期已激活`);
+      }
       this.animateRelayLed();
     }
   }

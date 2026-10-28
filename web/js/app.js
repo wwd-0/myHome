@@ -7,9 +7,10 @@
 
 import { store } from './store.js';
 import { LockView } from './views/lock-view.js';
-import { TestView } from './views/test-view.js';
 import { MembersView } from './views/members-view.js';
 import { SystemView } from './views/system-view.js';
+import { HelpView } from './views/help-view.js';
+import { SnapshotsView } from './views/snapshots-view.js';
 
 class Application {
   constructor() {
@@ -36,9 +37,10 @@ class Application {
   // 初始化各模块视图控制器
   initViews() {
     this.lockView = new LockView();
-    this.testView = new TestView(this.lockView);
     this.membersView = new MembersView();
     this.systemView = new SystemView();
+    this.helpView = new HelpView();
+    this.snapshotsView = new SnapshotsView();
   }
 
   // 一级目录折叠/展开手风琴交互
@@ -113,17 +115,21 @@ class Application {
         title: '门锁控制中心',
         subtitle: '智能门锁状态监控 · 实体开关前后 5 秒智能互锁开门'
       },
-      test: {
-        title: '门前识别核验体验',
-        subtitle: '门前人体检测 · 肢体手势与按键联动体验'
-      },
       data: {
         title: '家庭成员名单管理',
         subtitle: '家庭成员名单维护与特征自动录入 · 隐私安全保护'
       },
+      snapshots: {
+        title: '人脸自动抓拍快照库',
+        subtitle: '按身份独立子目录归档 · 支持页面配置抓拍间隔并保存至配置文件 · 超过 500 张自动清理最早 100 张'
+      },
       system: {
         title: '系统运维与架构监控',
         subtitle: 'C++17 HTTP 核心 + PyTorch MPS 运行状态 · 硬件 GPIO 脉冲与 HA 联动审计'
+      },
+      help: {
+        title: '帮助与门锁规则说明',
+        subtitle: '智能开锁策略指南 · 实体开关双向互锁规则 · 硬件链路与安全机制'
       }
     };
 
@@ -165,6 +171,8 @@ class Application {
       // 视图特定数据初始化
       if (tabKey === 'data') {
         store.fetchMembers();
+      } else if (tabKey === 'snapshots') {
+        store.fetchSnapshots();
       } else {
         store.fetchStatus();
       }
@@ -175,6 +183,15 @@ class Application {
         e.preventDefault();
         const tabKey = item.dataset.tab;
         if (tabKey) switchModule(tabKey);
+      });
+    });
+
+    // 允许通过 data-jump 属性跨模块跳转
+    document.querySelectorAll('[data-jump]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        const targetTab = el.getAttribute('data-jump');
+        if (targetTab) switchModule(targetTab);
       });
     });
 
@@ -208,8 +225,11 @@ class Application {
       }
 
       if (presencePillText) {
-        if (st.family_presence_active) {
-          presencePillText.innerText = '自家人在场: ' + (st.last_verified_family || '有');
+        if (st.switch_waiting_active) {
+          presencePillText.innerText = `开关等待识人: ${st.switch_waiting_remaining_sec}s`;
+          presencePillText.style.color = 'var(--warning)';
+        } else if (st.family_presence_active) {
+          presencePillText.innerText = '自家人在场: ' + (st.last_verified_family || '有') + ` (${st.presence_remaining_sec}s)`;
           presencePillText.style.color = 'var(--success)';
         } else {
           presencePillText.innerText = '自家人在场: 无';

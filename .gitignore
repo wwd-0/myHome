@@ -28,6 +28,7 @@ audio/db/voices/*
 !audio/db/voices/README.md
 
 alerts/
+output/snapshots/
 
 # ==============================================================================
 # 3. Python 缓存、虚拟环境与构建产物

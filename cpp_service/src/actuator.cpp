@@ -131,4 +131,12 @@ bool CooldownActuatorDecorator::isInCooldown() const {
     return elapsed < cooldown_sec_;
 }
 
+double CooldownActuatorDecorator::getCooldownRemainingSec() const {
+    std::lock_guard<std::mutex> lk(mtx_);
+    if (last_unlock_time_.time_since_epoch().count() == 0) return 0.0;
+    double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - last_unlock_time_).count();
+    if (elapsed >= cooldown_sec_) return 0.0;
+    return std::max(0.0, std::round((cooldown_sec_ - elapsed) * 10.0) / 10.0);
+}
+
 } // namespace myhome

@@ -19,13 +19,21 @@ struct PersonDetail {
     double latency_ms = 0.0;
 };
 
+// 单个检测到的人脸明细 (YuNet 人脸检测结果)
+struct FaceDetail {
+    cv::Rect bbox;
+    float score = 0.0f;
+};
+
 // 单帧纯净感知结果 (强类型领域对象，分离视觉特征与可视化图像)
 struct FrameRecognitionResult {
     int total_persons = 0;
     int family_count = 0;
     int stranger_count = 0;
+    int face_count = 0;
     std::vector<std::string> family_members;
     std::vector<PersonDetail> persons;
+    std::vector<FaceDetail> faces;
     double latency_ms = 0.0;
 };
 
@@ -39,10 +47,12 @@ struct GestureObservation {
 // 统一开门判定决策结果
 struct UnlockDecision {
     bool passed = false;
+    std::string status = "idle"; // "idle" | "pending" | "unlocked" | "blocked" | "cooldown" | "cancelled" | "superseded"
     std::string person = "None";
     std::string auth_mode = "None";
     float score = 0.0f;
     std::string action = "None";
+    std::string detail = "";
     int elapsed_ms = 0;
     int relay_pulse_ms = 500;
     std::string timestamp;

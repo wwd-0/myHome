@@ -119,6 +119,18 @@ bool SwitchWindowPolicy::isWaitingForPerson(std::chrono::steady_clock::time_poin
     return now < switch_pressed_until_;
 }
 
+double SwitchWindowPolicy::getWaitingRemainingSec(std::chrono::steady_clock::time_point now) const {
+    std::lock_guard<std::mutex> lk(mtx_);
+    if (now >= switch_pressed_until_) return 0.0;
+    double rem = std::chrono::duration<double>(switch_pressed_until_ - now).count();
+    return std::max(0.0, std::round(rem * 10.0) / 10.0);
+}
+
+void SwitchWindowPolicy::clearSwitchWait() {
+    std::lock_guard<std::mutex> lk(mtx_);
+    switch_pressed_until_ = std::chrono::steady_clock::time_point{};
+}
+
 // ============================================================================
 // GesturePolicy 实现
 // ============================================================================

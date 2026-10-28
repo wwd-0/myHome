@@ -14,6 +14,7 @@ public:
     virtual ~IUnlockActuator() = default;
     virtual bool executeUnlock(const UnlockDecision& decision) = 0;
     virtual bool isRelayActive() const = 0;
+    virtual double getCooldownRemainingSec() const { return 0.0; }
 };
 
 // 实际执行器: 触发 ESP32-C6 光耦 500ms 脉冲与 HA Webhook (遵循 SRP)
@@ -47,6 +48,7 @@ public:
     void setCooldownSec(double sec);
     double getCooldownSec() const;
     bool isInCooldown() const;
+    double getCooldownRemainingSec() const override;
 
 private:
     std::shared_ptr<IUnlockActuator> inner_;
