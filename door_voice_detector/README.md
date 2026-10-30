@@ -25,3 +25,4 @@ python door_voice_detector/train.py
 - `door_voice_detector/dataset/commands/<口令名>/*.wav`：10 种开门语音口令录音（16kHz 单声道 WAV）
 - `door_voice_detector/dataset/negatives/*.wav`：日常闲聊、走廊环境噪音等负样本
 - `door_voice_detector/dataset/speakers/<说话人ID>/*.wav`：不同说话人短语音样本（用于训练声纹区分能力；家人的门禁注册声纹无需放进训练集，直接在 Web 控制台或 `audio/db/voices/` 录入即可生效）
+
