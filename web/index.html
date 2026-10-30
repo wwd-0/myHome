@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/css/members.css" />
   <link rel="stylesheet" href="/css/help.css" />
   <link rel="stylesheet" href="/css/snapshots.css" />
+  <link rel="stylesheet" href="/css/voice.css" />
 </head>
 <body>
   <div class="app-wrapper">
@@ -70,6 +71,13 @@
                 <span class="tree-item-label">人脸抓拍快照</span>
               </div>
               <span class="tree-item-tag">500张轮转</span>
+            </a>
+            <a class="tree-item" data-tab="voice">
+              <div class="tree-item-left">
+                <span class="tree-item-icon">🎙️</span>
+                <span class="tree-item-label">语音口令与声纹</span>
+              </div>
+              <span class="tree-item-tag">独立开门</span>
             </a>
           </div>
         </div>
@@ -350,7 +358,7 @@
                 <tr><td style="color: var(--muted);">支持认证模式</td><td>
                   <span class="badge badge-mode">人体 + 手势</span>
                   <span class="badge badge-mode">人体 + 智能开关</span>
-                  <span class="badge badge-mode">声音 (预留)</span>
+                  <span class="badge badge-family">语音口令 + 声纹 (独立开门)</span>
                 </td></tr>
                 <tr><td style="color: var(--muted);">Home Assistant Webhook</td><td><code>/api/webhook/ai_door_unlock_event</code></td></tr>
                 <tr><td style="color: var(--muted);">硬件输出</td><td>ESP32-C6 GPIO 脉冲 500ms (自恢复断开，防线圈过热)</td></tr>
@@ -469,17 +477,17 @@
             <div class="help-strategy-header">
               <div class="help-strategy-title">
                 <span>🎙️</span>
-                <span>策略 3：语音核验与通行口令</span>
+                <span>策略 3：语音口令 + 声纹独立开门</span>
               </div>
-              <span class="badge badge-warning">声纹预留能力</span>
+              <span class="badge badge-family">两级微模型级联</span>
             </div>
             <div class="help-strategy-desc">
-              支持基于 3D-Speaker CAM++ 预训练声纹模型的高精度 1:1 比对，配合 VAD 智能语音端点检测与家庭自定义暗号口令。
+              人体传感器唤醒摄像头拉取音视频流后，通过 <strong>BC-ResNet+MDTC 口令网 (0.75MB)</strong> 与 <strong>CAM++-Lite 声纹网 (2.65MB)</strong> 两级识别，<strong>无需按键、无需人脸核验</strong>，语音通过即可直接开门。
             </div>
             <ul class="help-strategy-points">
-              <li><span class="bullet">✔</span><span><strong>声纹余弦阈值：</strong>1:1 余弦相似度 0.60 判定同一人</span></li>
-              <li><span class="bullet">✔</span><span><strong>能量过滤：</strong>VAD 阈值 0.015 RMS，过滤背景杂音</span></li>
-              <li><span class="bullet">✔</span><span><strong>口令联动：</strong>可根据需要无缝开启声纹与通行暗号开门</span></li>
+              <li><span class="bullet">✔</span><span><strong>10种口令识别：</strong>精准识别「芝麻开门」等 10 种口令并拒识闲聊</span></li>
+              <li><span class="bullet">✔</span><span><strong>10位家人声纹：</strong>文本相关声纹比对，同时输出具体口令与说话人</span></li>
+              <li><span class="bullet">✔</span><span><strong>独立极速通行：</strong>随摄像头拉流自动采集音频，核验通过直接开门</span></li>
             </ul>
           </div>
         </div>
@@ -701,6 +709,108 @@
           </div>
         </div>
       </section>
+
+      <!-- ==================== 模块 6: 方案 A 两级语音口令与声纹核验 ==================== -->
+      <section id="tab_voice" class="tab-content">
+        <div class="voice-policy-banner">
+          <div class="voice-meta-card">
+            <div class="voice-meta-header">
+              <span>🧠 方案 A 两级超轻量微模型级联</span>
+              <span class="badge badge-family" id="voiceModelReadyBadge">检测中</span>
+            </div>
+            <div class="voice-meta-value">BC-ResMDTC (0.75MB) + CAM++-Lite (2.65MB)</div>
+            <div class="voice-meta-sub">C++ 原生共享 80 维 Fbank 特征提取 · 总参数仅 3.4MB · 端到端推理 &lt; 15ms</div>
+          </div>
+
+          <div class="voice-meta-card">
+            <div class="voice-meta-header">
+              <span>🔓 独立开门与摄像头音频联动规则</span>
+              <span class="badge badge-mode">无需按键/人脸</span>
+            </div>
+            <div class="voice-meta-value" id="voiceThresholdsText">口令 ≥ 0.55 · 声纹 ≥ 0.60</div>
+            <div class="voice-meta-sub">人体传感器唤醒摄像头拉流时同步拉取音频流，语音核验通过直接开门，平时 0% CPU 休眠</div>
+          </div>
+
+          <div class="voice-meta-card">
+            <div class="voice-meta-header">
+              <span>👨‍👩‍👧‍👦 家庭成员声纹容量</span>
+              <span class="badge badge-family">1:10 文本相关声纹</span>
+            </div>
+            <div class="voice-meta-value" id="voiceMemberQuotaText">0 / 10 位家人</div>
+            <div class="voice-meta-sub">同时输出「说了哪句口令」+「是哪位家人」，陌生人即使说出正确口令也会在第二级被拦截</div>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom: 20px;">
+          <div class="card" style="margin-bottom: 0;">
+            <div class="card-title">
+              <div class="title-left">
+                <span>🗣️</span>
+                <span>系统支持的 10 种通行语音口令</span>
+              </div>
+              <span class="badge badge-mode">Stage-1 闲聊拒识</span>
+            </div>
+            <div style="font-size: 12.5px; color: var(--muted); line-height: 1.6;">
+              第一级时序口令网络带保序分块池化（拒绝倒念/乱序相似音），命中以下任一口令后才唤醒第二级声纹比对：
+            </div>
+            <div class="voice-commands-wrap" id="voiceCommandsList"></div>
+          </div>
+
+          <div class="card" style="margin-bottom: 0;">
+            <div class="card-title">
+              <div class="title-left">
+                <span>🎯</span>
+                <span>在线麦克风 / WAV 独立语音开门实测</span>
+              </div>
+              <span class="badge badge-family">通过即直接开锁</span>
+            </div>
+            <div class="voice-test-panel">
+              <div class="voice-record-actions">
+                <button type="button" class="btn-record-voice" id="btnRecordTestVoice">🎙️ 按下说话直接核验开门 (1.8秒)</button>
+                <label class="btn btn-outline" style="cursor: pointer; margin: 0;">
+                  <span>📂 上传 WAV 测试</span>
+                  <input type="file" id="voiceVerifyFileInput" accept=".wav,audio/wav" style="display: none;" />
+                </label>
+              </div>
+              <div class="voice-result-box">
+                <div id="voiceVerifyMsg" style="font-size: 13px; font-weight: 700; color: var(--muted);">等待录音或上传 16kHz WAV 音频进行两级核验...</div>
+                <div class="voice-result-grid">
+                  <div>
+                    <div style="font-size: 11px; color: var(--muted);">判定阶段</div>
+                    <div id="voiceResStage" style="font-size: 13px; font-weight: 700; margin-top: 3px;">-</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 11px; color: var(--muted);">识别口令 (Stage-1)</div>
+                    <div id="voiceResCommand" style="font-size: 13px; font-weight: 700; color: var(--accent); margin-top: 3px;">-</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 11px; color: var(--muted);">说话家人 (Stage-2)</div>
+                    <div id="voiceResPerson" style="font-size: 13px; font-weight: 700; color: var(--purple); margin-top: 3px;">-</div>
+                  </div>
+                  <div>
+                    <div style="font-size: 11px; color: var(--muted);">C++ 推理耗时</div>
+                    <div id="voiceResLatency" style="font-size: 13px; font-weight: 700; margin-top: 3px;">-</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <div class="title-left">
+              <span>🎙️</span>
+              <span>家庭成员声纹与口令模板库 (最多 10 位家人)</span>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button class="btn btn-outline" id="btnReloadVoiceDb">🔄 重载语音模型与声纹库</button>
+              <button class="btn btn-primary" id="btnOpenVoiceModal">➕ 录入家人语音口令</button>
+            </div>
+          </div>
+          <div class="voice-members-grid" id="voiceMembersGrid"></div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -745,6 +855,45 @@
       </div>
       <div style="text-align: center; background: #090d16; border-radius: 10px; overflow: hidden; border: 1px solid #24344d;">
         <img id="snapshotPreviewImg" style="max-width: 100%; max-height: 70vh; display: block; margin: 0 auto;" alt="Snapshot Preview" />
+      </div>
+    </div>
+  </div>
+
+  <!-- 录入家人语音口令与声纹 模态弹窗 -->
+  <div class="modal-overlay" id="voiceUploadModal">
+    <div class="modal-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+        <h3 style="font-size: 16px; font-weight: 700;">🎙️ 录入家庭成员语音口令样本</h3>
+        <button id="btnCloseVoiceModal" style="background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer;">✕</button>
+      </div>
+
+      <div class="form-group">
+        <label>家庭成员姓名 (如: 爸爸, 妈妈, 淘淘 · 最多支持 10 位)</label>
+        <input type="text" id="voiceMemberNameInput" class="form-control" placeholder="请输入家庭成员名称" />
+      </div>
+
+      <div class="form-group">
+        <label>绑定通行口令模板 (推荐绑定对应口令以获得更高文本相关声纹精度)</label>
+        <select id="voiceCommandSelect" class="form-control">
+          <option value="">通用声纹模板 (不限特定口令)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>方式 1：使用浏览器麦克风直接录制 (自动重采样为 16kHz 单声道 WAV)</label>
+        <button type="button" class="btn-record-voice" id="btnRecordEnrollVoice" style="width: 100%;">🎙️ 点击麦克风录制口令 (1.8秒)</button>
+      </div>
+
+      <div class="form-group">
+        <label>方式 2：或选择本地已录制的 .wav 音频文件</label>
+        <input type="file" id="voiceFileEnrollInput" accept=".wav,audio/wav" class="form-control" />
+      </div>
+
+      <div id="voiceEnrollStatusTip" style="font-size: 12px; color: var(--accent); margin-bottom: 16px;">尚未录制或选择 WAV 音频</div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn btn-outline" id="btnCancelVoiceModal">取消</button>
+        <button class="btn btn-primary" id="btnSubmitVoiceEnroll">确认录入声纹并热更新</button>
       </div>
     </div>
   </div>

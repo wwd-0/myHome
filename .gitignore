@@ -29,6 +29,8 @@ audio/db/voices/*
 
 alerts/
 output/snapshots/
+door_voice_detector/dataset/
+door_voice_detector/weights/
 
 # ==============================================================================
 # 3. Python 缓存、虚拟环境与构建产物

@@ -44,6 +44,19 @@ struct GestureObservation {
     bool is_confirmed = false;
 };
 
+// 方案 A 两级轻量语音核验结果 (Stage 1 口令识别 + Stage 2 声纹比对)
+struct VoiceRecognitionResult {
+    bool vad_passed = false;
+    bool command_matched = false;
+    bool is_family = false;
+    std::string stage = "IDLE";       // "VAD_SILENCE" | "STAGE1_COMMAND_REJECT" | "STAGE2_STRANGER_REJECT" | "STAGE2_VERIFIED"
+    std::string command = "NONE";     // 命中的具体口令 (10 种口令之一，未命中为 "NONE")
+    float command_score = 0.0f;       // 第一级口令置信度
+    std::string person = "None";      // 识别出的家庭成员姓名 (陌生人为 "陌生人")
+    float speaker_score = 0.0f;       // 第二级声纹余弦相似度
+    double latency_ms = 0.0;          // 两级推理总耗时 (ms)
+};
+
 // 统一开门判定决策结果
 struct UnlockDecision {
     bool passed = false;
@@ -69,6 +82,7 @@ struct AuthEvent {
     AuthEventType type = AuthEventType::FrameRecognized;
     std::chrono::steady_clock::time_point timestamp = std::chrono::steady_clock::now();
     FrameRecognitionResult frame_result;
+    VoiceRecognitionResult voice_result;
     std::string gesture_name = "NONE";
     std::string voice_text = "";
     int elapsed_ms = 0;

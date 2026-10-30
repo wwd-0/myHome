@@ -1,0 +1,162 @@
+/* ============================================================================
+   MyHome AI - 方案 A 两级超轻量语音口令 + 声纹核验模块样式 (voice.css)
+   ============================================================================ */
+
+.voice-policy-banner {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 1100px) {
+  .voice-policy-banner {
+    grid-template-columns: 1fr;
+  }
+}
+
+.voice-meta-card {
+  background: linear-gradient(145deg, #101827 0%, #0b111d 100%);
+  border: 1px solid #1e2d44;
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+
+.voice-meta-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.voice-meta-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.voice-meta-sub {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.voice-commands-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.voice-cmd-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.voice-test-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.voice-record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.btn-record-voice {
+  background: linear-gradient(135deg, #0284c7, #2563eb);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-record-voice.recording {
+  background: linear-gradient(135deg, #dc2626, #ea580c);
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.45);
+}
+
+.voice-result-box {
+  background: #080d16;
+  border: 1px solid #1b2940;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.voice-result-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 10px;
+}
+
+@media (max-width: 900px) {
+  .voice-result-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.voice-members-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 16px;
+}
+
+.voice-member-card {
+  background: #0b1220;
+  border: 1px solid #1d2b41;
+  border-radius: 12px;
+  padding: 15px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.voice-member-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.voice-sample-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 210px;
+  overflow-y: auto;
+}
+
+.voice-sample-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: #070c15;
+  border: 1px solid #162336;
+  font-size: 12px;
+}
+
+.voice-sample-row audio {
+  height: 28px;
+  max-width: 150px;
+}

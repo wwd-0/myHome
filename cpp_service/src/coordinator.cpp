@@ -9,8 +9,14 @@
 #include <ctime>
 #include <algorithm>
 #include <thread>
+#include <deque>
 #include <cmath>
 #include <cctype>
+#include <unistd.h>
+#include <fcntl.h>
+#include <poll.h>
+#include <csignal>
+#include <sys/wait.h>
 
 namespace fs = std::filesystem;
 
@@ -293,16 +299,55 @@ std::vector<SnapshotFileRecord> collectAllSnapshotFiles(const std::string& root_
     return records;
 }
 
+std::string resolveFfmpegExecutable() {
+    static const char* kCandidates[] = {
+        "/opt/homebrew/bin/ffmpeg",
+        "/usr/local/bin/ffmpeg",
+        "/usr/bin/ffmpeg"
+    };
+    for (const char* p : kCandidates) {
+        if (::access(p, X_OK) == 0) {
+            return std::string(p);
+        }
+    }
+    return "ffmpeg";
+}
+
+std::vector<std::string> buildFfmpegAudioArgs(const std::string& ffmpeg_bin, const std::string& audio_src) {
+    std::vector<std::string> args = {ffmpeg_bin, "-nostdin", "-loglevel", "quiet"};
+    bool is_local_mic = (audio_src.empty() || audio_src == "0" || audio_src.rfind(":", 0) == 0);
+
+    if (is_local_mic) {
+#ifdef __APPLE__
+        std::string dev = (audio_src.rfind(":", 0) == 0) ? audio_src : ":0";
+        args.insert(args.end(), {"-f", "avfoundation", "-i", dev});
+#else
+        std::string dev = (audio_src.rfind(":", 0) == 0) ? "default" : (audio_src == "0" || audio_src.empty() ? "default" : audio_src);
+        args.insert(args.end(), {"-f", "alsa", "-i", dev});
+#endif
+    } else {
+        if (audio_src.rfind("rtsp://", 0) == 0 || audio_src.rfind("rtsps://", 0) == 0) {
+            args.insert(args.end(), {"-rtsp_transport", "tcp"});
+        }
+        args.insert(args.end(), {"-fflags", "nobuffer", "-flags", "low_delay", "-vn", "-i", audio_src});
+    }
+
+    args.insert(args.end(), {"-f", "s16le", "-acodec", "pcm_s16le", "-ac", "1", "-ar", "16000", "pipe:1"});
+    return args;
+}
+
 } // namespace
 
 VerifyServiceCoordinator::VerifyServiceCoordinator(std::shared_ptr<CppPersonEngine> person_engine,
                                                    std::shared_ptr<CppGestureEngine> gesture_engine,
+                                                   std::shared_ptr<CppVoiceEngine> voice_engine,
                                                    std::shared_ptr<CompositePolicy> composite_policy,
                                                    std::shared_ptr<IUnlockActuator> actuator,
                                                    const std::string& cam_source,
                                                    double active_window_sec)
     : person_engine_(std::move(person_engine)),
       gesture_engine_(std::move(gesture_engine)),
+      voice_engine_(std::move(voice_engine)),
       composite_policy_(std::move(composite_policy)),
       actuator_(std::move(actuator)),
       cam_source_(cam_source),
@@ -656,25 +701,144 @@ nlohmann::json VerifyServiceCoordinator::handleSmartSwitchVerifyQuery() {
 }
 
 nlohmann::json VerifyServiceCoordinator::handleVoiceVerify(const nlohmann::json& req) {
+    if (!voice_engine_) {
+        return nlohmann::json{
+            {"status", "error"},
+            {"passed", false},
+            {"auth_mode", "声音核验"},
+            {"message", "语音核验引擎未注入"}
+        };
+    }
+
+    std::string b64_audio = req.value("audio", "");
+    if (b64_audio.empty() || b64_audio == "dummy") {
+        auto vcfg = voice_engine_->getConfig();
+        return nlohmann::json{
+            {"status", voice_engine_->isHealthy() ? "ready" : "model_not_ready"},
+            {"passed", false},
+            {"auth_mode", "声音核验"},
+            {"models_ready", voice_engine_->isHealthy()},
+            {"unlock_commands", vcfg.unlock_commands},
+            {"message", voice_engine_->isHealthy()
+                            ? "请录制或上传 WAV 语音片段进行两级口令+声纹核验"
+                            : "语音 ONNX 模型尚未导出，请先运行 python door_voice_detector/train.py 导出模型至 ./audio/models/"}
+        };
+    }
+
+    auto now = std::chrono::steady_clock::now();
+    VoiceRecognitionResult vres = voice_engine_->recognizeBase64Wav(b64_audio);
+
+    {
+        std::lock_guard<std::mutex> lk(mtx_);
+        live_voice_stage_ = vres.stage;
+        live_voice_command_ = vres.command;
+        live_voice_person_ = vres.person;
+        live_voice_score_ = vres.speaker_score;
+    }
+
     AuthEvent event;
     event.type = AuthEventType::VoiceCommand;
-    event.timestamp = std::chrono::steady_clock::now();
-    event.voice_text = req.value("text", "");
+    event.timestamp = now;
+    event.voice_result = vres;
+    event.voice_text = vres.command;
+    event.elapsed_ms = std::max(1, static_cast<int>(std::round(vres.latency_ms)));
 
     auto decision = composite_policy_->evaluateAll(event);
     if (decision.has_value() && decision->passed) {
         bool executed = actuator_->executeUnlock(*decision);
-        recordAuditEvent(*decision,
-                         executed ? "unlocked" : "cooldown",
-                         executed ? "声纹与通行口令核验通过" : "声纹核验通过，但处于冷却保护期",
-                         executed);
-        return nlohmann::json{{"status", executed ? "unlocked" : "cooldown"}, {"passed", executed}, {"person", decision->person}};
+        if (executed) {
+            recordAuditEvent(*decision, "unlocked", decision->detail, true);
+            {
+                std::lock_guard<std::mutex> lk(mtx_);
+                if (verifying_) {
+                    stop_requested_ = true;
+                }
+            }
+            return nlohmann::json{
+                {"status", "unlocked"},
+                {"passed", true},
+                {"auth_mode", decision->auth_mode},
+                {"stage", vres.stage},
+                {"command", vres.command},
+                {"command_score", std::round(vres.command_score * 1000.0f) / 1000.0f},
+                {"person", vres.person},
+                {"speaker_score", std::round(vres.speaker_score * 1000.0f) / 1000.0f},
+                {"latency_ms", std::round(vres.latency_ms * 100.0) / 100.0},
+                {"message", "语音口令「" + vres.command + "」+ 家人【" + vres.person + "】声纹核验通过，门锁已独立开启！"}
+            };
+        } else {
+            double cd_rem = actuator_->getCooldownRemainingSec();
+            UnlockDecision cd_dec = *decision;
+            cd_dec.passed = false;
+            cd_dec.action = "COOLDOWN_PROTECTED";
+            cd_dec.relay_pulse_ms = 0;
+            recordAuditEvent(cd_dec, "cooldown",
+                             "语音口令「" + vres.command + "」声纹核验通过，但处于 10s 冷却防抖期",
+                             false);
+            return nlohmann::json{
+                {"status", "cooldown"},
+                {"passed", false},
+                {"auth_mode", decision->auth_mode},
+                {"stage", vres.stage},
+                {"command", vres.command},
+                {"command_score", std::round(vres.command_score * 1000.0f) / 1000.0f},
+                {"person", vres.person},
+                {"speaker_score", std::round(vres.speaker_score * 1000.0f) / 1000.0f},
+                {"cooldown_remaining_sec", cd_rem},
+                {"latency_ms", std::round(vres.latency_ms * 100.0) / 100.0},
+                {"message", "已识别【" + vres.person + "】口令「" + vres.command + "」，但处于防重冷却保护期（剩余 " + formatOneDecimal(cd_rem) + "s）"}
+            };
+        }
     }
+
+    if (vres.stage == "STAGE2_STRANGER_REJECT") {
+        UnlockDecision blk;
+        blk.passed = false;
+        blk.person = "陌生人 (声纹未匹配)";
+        blk.auth_mode = "声音核验";
+        blk.score = vres.speaker_score;
+        blk.action = "VOICE_BLOCKED:" + vres.command;
+        blk.elapsed_ms = std::max(1, static_cast<int>(std::round(vres.latency_ms)));
+        blk.relay_pulse_ms = 0;
+        std::string detail_msg = "说出有效口令「" + vres.command + "」，但声纹非家庭成员，已拒绝开门";
+        recordAuditEvent(blk, "blocked", detail_msg, false);
+
+        return nlohmann::json{
+            {"status", "blocked"},
+            {"passed", false},
+            {"auth_mode", "声音核验"},
+            {"stage", vres.stage},
+            {"command", vres.command},
+            {"command_score", std::round(vres.command_score * 1000.0f) / 1000.0f},
+            {"person", vres.person},
+            {"speaker_score", std::round(vres.speaker_score * 1000.0f) / 1000.0f},
+            {"latency_ms", std::round(vres.latency_ms * 100.0) / 100.0},
+            {"message", detail_msg}
+        };
+    }
+
+    std::string reject_msg = "未命中开门语音口令";
+    if (vres.stage == "VAD_SILENCE") {
+        reject_msg = "音频能量过低（静音或环境底噪），第一级 VAD 已过滤";
+    } else if (vres.stage == "STAGE1_COMMAND_REJECT") {
+        reject_msg = "第一级口令网络判定为非开门指令（日常闲聊/噪音已拒识）";
+    } else if (vres.stage == "MODEL_NOT_READY") {
+        reject_msg = "语音 ONNX 模型未就绪，请先运行 python door_voice_detector/train.py 导出模型";
+    } else if (vres.stage == "INVALID_AUDIO") {
+        reject_msg = "音频格式无法解析，请提供有效 PCM WAV 音频";
+    }
+
     return nlohmann::json{
-        {"status", "reserved"},
+        {"status", "rejected"},
         {"passed", false},
         {"auth_mode", "声音核验"},
-        {"message", "声纹比对与 ASR 说话内容识别模块接口已就绪，等待后续音频模型接入"}
+        {"stage", vres.stage},
+        {"command", vres.command},
+        {"command_score", std::round(vres.command_score * 1000.0f) / 1000.0f},
+        {"person", vres.person},
+        {"speaker_score", std::round(vres.speaker_score * 1000.0f) / 1000.0f},
+        {"latency_ms", std::round(vres.latency_ms * 100.0) / 100.0},
+        {"message", reject_msg}
     };
 }
 
@@ -868,6 +1032,12 @@ nlohmann::json VerifyServiceCoordinator::getStatus() {
         {"live_person", live_person_},
         {"live_score", std::round(live_score_ * 1000.0f) / 1000.0f},
         {"live_has_stranger", live_has_stranger_},
+        {"voice_enabled", voice_engine_ ? voice_engine_->getConfig().enabled : false},
+        {"voice_models_ready", voice_engine_ ? voice_engine_->isHealthy() : false},
+        {"live_voice_stage", live_voice_stage_},
+        {"live_voice_command", live_voice_command_},
+        {"live_voice_person", live_voice_person_},
+        {"live_voice_score", std::round(live_voice_score_ * 1000.0f) / 1000.0f},
         {"family_presence_active", presence_active},
         {"presence_remaining_sec", presence_rem},
         {"last_verified_family", last_family},
@@ -931,6 +1101,41 @@ nlohmann::json VerifyServiceCoordinator::reloadGallery() {
         ensureSnapshotSubdirsLocked();
     }
     return res;
+}
+
+nlohmann::json VerifyServiceCoordinator::getVoiceSummary() {
+    if (!voice_engine_) {
+        return nlohmann::json{{"enabled", false}, {"models_ready", false}, {"members", nlohmann::json::array()}};
+    }
+    return voice_engine_->getVoiceSummary();
+}
+
+nlohmann::json VerifyServiceCoordinator::uploadVoiceSample(const std::string& person,
+                                                           const std::string& command_tag,
+                                                           const std::string& base64_wav) {
+    if (!voice_engine_) {
+        return nlohmann::json{{"error", "Voice engine not initialized"}};
+    }
+    return voice_engine_->uploadVoiceSample(person, command_tag, base64_wav);
+}
+
+nlohmann::json VerifyServiceCoordinator::deleteVoiceSample(const std::string& filename) {
+    if (!voice_engine_) {
+        return nlohmann::json{{"error", "Voice engine not initialized"}};
+    }
+    return voice_engine_->deleteVoiceSample(filename);
+}
+
+std::vector<uchar> VerifyServiceCoordinator::getVoiceFileBinary(const std::string& filename) {
+    if (!voice_engine_) return {};
+    return voice_engine_->getVoiceFileBinary(filename);
+}
+
+nlohmann::json VerifyServiceCoordinator::reloadVoiceGallery() {
+    if (!voice_engine_) {
+        return nlohmann::json{{"error", "Voice engine not initialized"}};
+    }
+    return voice_engine_->reloadGallery();
 }
 
 void VerifyServiceCoordinator::ensureSnapshotSubdirsLocked() {
@@ -1303,13 +1508,266 @@ void VerifyServiceCoordinator::runMainThreadLoop() {
             live_person_ = "None";
             live_score_ = 0.0f;
             live_has_stranger_ = false;
+            live_voice_stage_ = "IDLE";
+            live_voice_command_ = "NONE";
+            live_voice_person_ = "None";
+            live_voice_score_ = 0.0f;
             remaining_sec_ = 0.0;
             cv_wakeup_.wait(lock, [this]() { return verifying_ || !running_; });
             if (!running_) break;
         }
 
         auto t_start = std::chrono::steady_clock::now();
-        std::cout << "\n📡 [C++ 核验服务] 收到唤醒信号！正在打开摄像头视频流..." << std::endl;
+        std::cout << "\n📡 [C++ 核验服务] 收到人体传感器/唤醒信号！正在拉取摄像头音视频流..." << std::endl;
+
+        // ====================================================================
+        // 并行启动摄像头音频流采集与两级语音核验线程 (方案 A：独立语音开门，无需开关或人脸配合)
+        // 仅在人体传感器唤醒拉流窗口期内工作，窗口结束或开门成功即刻销毁回到 0% CPU
+        // ====================================================================
+        std::atomic<bool> stop_audio{false};
+        std::atomic<bool> voice_unlocked{false};
+        std::atomic<bool> audio_alive{false};
+        std::atomic<pid_t> audio_ffmpeg_pid{-1};
+        std::thread audio_thread;
+
+        if (voice_engine_ && voice_engine_->getConfig().enabled && voice_engine_->isHealthy()) {
+            auto vcfg = voice_engine_->getConfig();
+            std::string audio_src = (vcfg.stream_source.empty() || vcfg.stream_source == "auto")
+                                        ? cam_source_
+                                        : vcfg.stream_source;
+            float vad_thresh = std::max(0.005f, vcfg.vad_energy_threshold);
+
+            audio_alive.store(true);
+            audio_thread = std::thread([this, audio_src, vad_thresh, t_start,
+                                        &stop_audio, &voice_unlocked, &audio_alive, &audio_ffmpeg_pid]() {
+                int pipefd[2] = {-1, -1};
+                if (::pipe(pipefd) != 0) {
+                    audio_alive.store(false);
+                    return;
+                }
+
+                std::string ffmpeg_bin = resolveFfmpegExecutable();
+                std::vector<std::string> args = buildFfmpegAudioArgs(ffmpeg_bin, audio_src);
+
+                pid_t child_pid = ::fork();
+                if (child_pid < 0) {
+                    ::close(pipefd[0]);
+                    ::close(pipefd[1]);
+                    audio_alive.store(false);
+                    return;
+                }
+
+                if (child_pid == 0) {
+                    // 子进程：执行 ffmpeg 拉取摄像头音频轨并解码为 16kHz 单声道 s16le PCM
+                    ::close(pipefd[0]);
+                    ::dup2(pipefd[1], STDOUT_FILENO);
+                    int devnull = ::open("/dev/null", O_WRONLY);
+                    if (devnull >= 0) {
+                        ::dup2(devnull, STDERR_FILENO);
+                        ::close(devnull);
+                    }
+                    ::close(pipefd[1]);
+
+                    std::vector<char*> argv_ptrs;
+                    argv_ptrs.reserve(args.size() + 1);
+                    for (auto& s : args) {
+                        argv_ptrs.push_back(s.data());
+                    }
+                    argv_ptrs.push_back(nullptr);
+                    ::execvp(ffmpeg_bin.c_str(), argv_ptrs.data());
+                    ::_exit(127);
+                }
+
+                // 父进程音频读取与流式 VAD 端点切分循环
+                ::close(pipefd[1]);
+                int pipe_r = pipefd[0];
+                int fl = ::fcntl(pipe_r, F_GETFL, 0);
+                if (fl >= 0) {
+                    ::fcntl(pipe_r, F_SETFL, fl | O_NONBLOCK);
+                }
+                audio_ffmpeg_pid.store(child_pid);
+
+                std::cout << "🎙️ [摄像头音频流] 已随拉流唤醒同步开启 (源: " << audio_src << ", 16kHz 单声道)" << std::endl;
+
+                constexpr size_t kChunkSamples = 320; // 20ms @ 16kHz
+                constexpr size_t kChunkBytes = kChunkSamples * sizeof(int16_t);
+                std::vector<uint8_t> raw_bytes;
+                raw_bytes.reserve(8192);
+
+                std::deque<std::vector<float>> preroll;
+                std::vector<float> utterance_pcm;
+                utterance_pcm.reserve(16000 * 3);
+
+                bool in_speech = false;
+                int speech_onset_chunks = 0;
+                int silence_tail_chunks = 0;
+                bool stranger_logged_once = false;
+                bool cooldown_logged_once = false;
+
+                uint8_t read_buf[4096];
+                while (running_ && !stop_audio.load() && !voice_unlocked.load()) {
+                    {
+                        std::lock_guard<std::mutex> lk(mtx_);
+                        if (stop_requested_ || std::chrono::steady_clock::now() >= verify_deadline_) {
+                            break;
+                        }
+                    }
+
+                    struct pollfd pfd{};
+                    pfd.fd = pipe_r;
+                    pfd.events = POLLIN;
+                    int pret = ::poll(&pfd, 1, 40);
+                    if (pret < 0) {
+                        if (errno == EINTR) continue;
+                        break;
+                    }
+                    if (pret == 0) {
+                        continue;
+                    }
+
+                    ssize_t n = ::read(pipe_r, read_buf, sizeof(read_buf));
+                    if (n == 0) {
+                        // EOF: 摄像头无音频轨或流已结束
+                        break;
+                    }
+                    if (n < 0) {
+                        if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) continue;
+                        break;
+                    }
+
+                    raw_bytes.insert(raw_bytes.end(), read_buf, read_buf + n);
+
+                    while (raw_bytes.size() >= kChunkBytes && !stop_audio.load() && !voice_unlocked.load()) {
+                        std::vector<float> chunk(kChunkSamples);
+                        double energy_sum = 0.0;
+                        const int16_t* s16 = reinterpret_cast<const int16_t*>(raw_bytes.data());
+                        for (size_t i = 0; i < kChunkSamples; ++i) {
+                            float v = static_cast<float>(s16[i]) / 32768.0f;
+                            chunk[i] = v;
+                            energy_sum += static_cast<double>(v) * static_cast<double>(v);
+                        }
+                        raw_bytes.erase(raw_bytes.begin(), raw_bytes.begin() + kChunkBytes);
+
+                        float chunk_rms = static_cast<float>(std::sqrt(energy_sum / static_cast<double>(kChunkSamples)));
+
+                        if (!in_speech) {
+                            preroll.push_back(chunk);
+                            if (preroll.size() > 8) { // 保留 160ms 前导缓冲防吞字
+                                preroll.pop_front();
+                            }
+                            if (chunk_rms >= vad_thresh) {
+                                speech_onset_chunks++;
+                                if (speech_onset_chunks >= 3) { // 连续 60ms 语音激活
+                                    in_speech = true;
+                                    silence_tail_chunks = 0;
+                                    utterance_pcm.clear();
+                                    for (const auto& pre : preroll) {
+                                        utterance_pcm.insert(utterance_pcm.end(), pre.begin(), pre.end());
+                                    }
+                                    preroll.clear();
+                                }
+                            } else {
+                                speech_onset_chunks = 0;
+                            }
+                        } else {
+                            utterance_pcm.insert(utterance_pcm.end(), chunk.begin(), chunk.end());
+                            if (chunk_rms < vad_thresh * 0.75f) {
+                                silence_tail_chunks++;
+                            } else {
+                                silence_tail_chunks = 0;
+                            }
+
+                            // 句尾静音满 280ms (14 帧) 或单句达到 2.2s 上限则触发两级级联推理
+                            if (silence_tail_chunks >= 14 || utterance_pcm.size() >= 16000 * 22 / 10) {
+                                in_speech = false;
+                                speech_onset_chunks = 0;
+                                silence_tail_chunks = 0;
+
+                                if (utterance_pcm.size() >= 16000 * 35 / 100) {
+                                    VoiceRecognitionResult vres = voice_engine_->recognizeSamples(utterance_pcm);
+                                    auto ev_now = std::chrono::steady_clock::now();
+                                    int elapsed_ms = static_cast<int>(
+                                        std::chrono::duration_cast<std::chrono::milliseconds>(ev_now - t_start).count());
+
+                                    {
+                                        std::lock_guard<std::mutex> lk(mtx_);
+                                        live_voice_stage_ = vres.stage;
+                                        live_voice_command_ = vres.command;
+                                        live_voice_person_ = vres.person;
+                                        live_voice_score_ = vres.speaker_score;
+                                    }
+
+                                    AuthEvent vev;
+                                    vev.type = AuthEventType::VoiceCommand;
+                                    vev.timestamp = ev_now;
+                                    vev.voice_result = vres;
+                                    vev.voice_text = vres.command;
+                                    vev.elapsed_ms = std::max(1, elapsed_ms);
+
+                                    auto vdec = composite_policy_->evaluateAll(vev);
+                                    if (vdec.has_value() && vdec->passed) {
+                                        bool executed = actuator_->executeUnlock(*vdec);
+                                        if (executed) {
+                                            std::cout << "🎙️🔓 [C++ 语音独立开门] 识别家人【" << vdec->person
+                                                      << "】口令「" << vres.command
+                                                      << "」(声纹相似度=" << vres.speaker_score
+                                                      << ", 推理=" << vres.latency_ms << "ms)，直接开门！" << std::endl;
+                                            recordAuditEvent(*vdec, "unlocked", vdec->detail, true);
+                                            voice_unlocked.store(true);
+                                            break;
+                                        } else if (!cooldown_logged_once) {
+                                            cooldown_logged_once = true;
+                                            UnlockDecision cd_dec = *vdec;
+                                            cd_dec.passed = false;
+                                            cd_dec.action = "COOLDOWN_PROTECTED";
+                                            cd_dec.relay_pulse_ms = 0;
+                                            recordAuditEvent(cd_dec, "cooldown",
+                                                             "语音口令「" + vres.command + "」核验通过，但处于 10s 冷却防抖期",
+                                                             false);
+                                        }
+                                    } else if (vres.stage == "STAGE2_STRANGER_REJECT" && !stranger_logged_once) {
+                                        stranger_logged_once = true;
+                                        UnlockDecision blk;
+                                        blk.passed = false;
+                                        blk.person = "陌生人 (声纹未匹配)";
+                                        blk.auth_mode = "声音核验";
+                                        blk.score = vres.speaker_score;
+                                        blk.action = "VOICE_BLOCKED:" + vres.command;
+                                        blk.elapsed_ms = std::max(1, elapsed_ms);
+                                        blk.relay_pulse_ms = 0;
+                                        std::string msg = "摄像头音频检测到口令「" + vres.command + "」，但声纹非家庭成员，已拦截";
+                                        recordAuditEvent(blk, "blocked", msg, false);
+                                        std::cout << "🎙️🛡️ [C++ 语音安全拦截] " << msg << std::endl;
+                                    }
+                                }
+                                utterance_pcm.clear();
+                            }
+                        }
+                    }
+                }
+
+                ::close(pipe_r);
+                audio_ffmpeg_pid.store(-1);
+                if (child_pid > 0) {
+                    ::kill(child_pid, SIGTERM);
+                    int wstatus = 0;
+                    bool reaped = false;
+                    for (int i = 0; i < 15; ++i) {
+                        pid_t w = ::waitpid(child_pid, &wstatus, WNOHANG);
+                        if (w == child_pid || w < 0) {
+                            reaped = true;
+                            break;
+                        }
+                        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                    }
+                    if (!reaped) {
+                        ::kill(child_pid, SIGKILL);
+                        ::waitpid(child_pid, &wstatus, 0);
+                    }
+                }
+                audio_alive.store(false);
+            });
+        }
 
         cv::VideoCapture cap;
         if (cam_source_ == "0" || cam_source_.empty()) {
@@ -1323,26 +1781,44 @@ void VerifyServiceCoordinator::runMainThreadLoop() {
 
         if (!cap.isOpened()) {
             std::cerr << "❌ [C++ 核验服务] 无法打开视频源: " << cam_source_ << std::endl;
-            std::lock_guard<std::mutex> lk(mtx_);
-            if (pending_switch_.has_value()) {
-                pending_switch_->camera_unavailable = true;
+            {
+                std::lock_guard<std::mutex> lk(mtx_);
+                if (pending_switch_.has_value()) {
+                    pending_switch_->camera_unavailable = true;
+                }
+            }
+            // 若视频源暂不可用但音频流仍在工作，保持监听直至语音开门或窗口期结束
+            while (running_ && audio_alive.load() && !voice_unlocked.load()) {
+                auto now = std::chrono::steady_clock::now();
+                {
+                    std::lock_guard<std::mutex> lk(mtx_);
+                    finalizeExpiredSwitchLocked(now);
+                    if (stop_requested_ || now >= verify_deadline_) break;
+                    remaining_sec_ = std::chrono::duration<double>(verify_deadline_ - now).count();
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(40));
             }
         } else {
             gesture_engine_->resetStreak();
             cv::Mat frame;
 
             while (running_) {
+                if (voice_unlocked.load()) {
+                    std::cout << "🎙️ [C++ 核验服务] 语音核验已完成独立开锁，同步关闭摄像头音视频流。" << std::endl;
+                    break;
+                }
+
                 auto now = std::chrono::steady_clock::now();
                 double remaining_sec = 0.0;
                 {
                     std::lock_guard<std::mutex> lk(mtx_);
                     finalizeExpiredSwitchLocked(now);
                     if (stop_requested_) {
-                        std::cout << "⏹️ [C++ 核验服务] 收到手动停止指令，释放摄像头。" << std::endl;
+                        std::cout << "⏹️ [C++ 核验服务] 收到手动停止指令，释放摄像头音视频流。" << std::endl;
                         break;
                     }
                     if (now >= verify_deadline_) {
-                        std::cout << "⏱️ [C++ 核验服务] 窗口期结束，关闭视频流回到 0% CPU 休眠态。" << std::endl;
+                        std::cout << "⏱️ [C++ 核验服务] 窗口期结束，关闭音视频流回到 0% CPU 休眠态。" << std::endl;
                         break;
                     }
                     remaining_sec = std::chrono::duration<double>(verify_deadline_ - now).count();
@@ -1352,6 +1828,10 @@ void VerifyServiceCoordinator::runMainThreadLoop() {
                 if (!cap.read(frame) || frame.empty()) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(15));
                     continue;
+                }
+
+                if (voice_unlocked.load()) {
+                    break;
                 }
 
                 // 1. 高性能纯净视觉感知 (无无用 JPEG 渲染，节约 90% CPU)
@@ -1441,6 +1921,16 @@ void VerifyServiceCoordinator::runMainThreadLoop() {
                 }
             }
             cap.release();
+        }
+
+        // 确保并行音频拉流子进程与线程立即安全退出，释放音频句柄回到 0% CPU
+        stop_audio.store(true);
+        pid_t active_pid = audio_ffmpeg_pid.exchange(-1);
+        if (active_pid > 0) {
+            ::kill(active_pid, SIGTERM);
+        }
+        if (audio_thread.joinable()) {
+            audio_thread.join();
         }
 
         {

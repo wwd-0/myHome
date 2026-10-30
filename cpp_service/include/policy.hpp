@@ -65,12 +65,20 @@ private:
     mutable std::mutex mtx_;
 };
 
-// 策略 3: 声音核验策略 (预留)
+// 策略 3: 声音核验策略 (独立声纹+口令开门，无需按开关或人脸核验配合)
 class VoicePolicy : public IUnlockPolicy {
 public:
+    explicit VoicePolicy(const std::vector<std::string>& allowed_commands = {});
     std::string name() const override { return "声音核验"; }
     std::optional<UnlockDecision> evaluate(const AuthEvent& event) override;
     void reset() override;
+
+    void setAllowedCommands(const std::vector<std::string>& commands);
+    std::vector<std::string> getAllowedCommands() const;
+
+private:
+    std::vector<std::string> allowed_commands_;
+    mutable std::mutex mtx_;
 };
 
 // 策略组合器 (Composite Pattern - 遵循 OCP & DIP)

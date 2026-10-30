@@ -22,7 +22,18 @@ export function formatAuditPresentation(h) {
     COOLDOWN_PROTECTED: '⏸️ 冷却期防抖拦截'
   };
 
-  const actionLabel = actionMap[h.action] || (h.action && h.action !== 'None' ? `✌️ 手势核验 (${h.action})` : '门禁事件');
+  let actionLabel = actionMap[h.action];
+  if (!actionLabel) {
+    if (typeof h.action === 'string' && h.action.startsWith('VOICE:')) {
+      actionLabel = `🎙️ 语音独立开锁 (${h.action.slice(6)})`;
+    } else if (typeof h.action === 'string' && h.action.startsWith('VOICE_BLOCKED:')) {
+      actionLabel = `🛡️ 陌生人语音拦截 (${h.action.slice(14)})`;
+    } else if (h.action && h.action !== 'None') {
+      actionLabel = `✌️ 手势核验 (${h.action})`;
+    } else {
+      actionLabel = '门禁事件';
+    }
+  }
 
   let badgeClass = 'badge-family';
   let badgeText = '✅ 开锁成功';
@@ -84,7 +95,8 @@ class StateStore {
         history: []
       },
       members: [],
-      snapshotsSummary: null
+      snapshotsSummary: null,
+      voiceSummary: null
     };
 
     this.listeners = [];
@@ -172,6 +184,17 @@ class StateStore {
       return data;
     } catch (err) {
       console.warn('[Store] 快照列表拉取失败:', err.message);
+    }
+  }
+
+  async fetchVoiceSummary() {
+    try {
+      const data = await api.getVoiceSummary();
+      this.state.voiceSummary = data;
+      this.notify();
+      return data;
+    } catch (err) {
+      console.warn('[Store] 声纹底库拉取失败:', err.message);
     }
   }
 

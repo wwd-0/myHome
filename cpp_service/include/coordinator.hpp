@@ -5,6 +5,7 @@
 #include "actuator.hpp"
 #include "person_engine.hpp"
 #include "gesture_engine.hpp"
+#include "voice_engine.hpp"
 
 #include <nlohmann/json.hpp>
 #include <string>
@@ -35,6 +36,7 @@ class VerifyServiceCoordinator {
 public:
     VerifyServiceCoordinator(std::shared_ptr<CppPersonEngine> person_engine,
                              std::shared_ptr<CppGestureEngine> gesture_engine,
+                             std::shared_ptr<CppVoiceEngine> voice_engine,
                              std::shared_ptr<CompositePolicy> composite_policy,
                              std::shared_ptr<IUnlockActuator> actuator,
                              const std::string& cam_source,
@@ -56,8 +58,17 @@ public:
     // 模式 2 查询：供 HA 同步查询当前门厅是否处于有效互锁窗口期
     nlohmann::json handleSmartSwitchVerifyQuery();
 
-    // 模式 3 声音核验接口 (预留)
+    // 模式 3 声音核验接口：支持独立语音口令 + 声纹核验直接开门 (无需开关或人脸配合)
     nlohmann::json handleVoiceVerify(const nlohmann::json& req);
+
+    // 家庭成员声纹与口令底库管理门面接口 (支持 10 种口令、最多 10 位家人)
+    nlohmann::json getVoiceSummary();
+    nlohmann::json uploadVoiceSample(const std::string& person,
+                                     const std::string& command_tag,
+                                     const std::string& base64_wav);
+    nlohmann::json deleteVoiceSample(const std::string& filename);
+    std::vector<uchar> getVoiceFileBinary(const std::string& filename);
+    nlohmann::json reloadVoiceGallery();
 
     // 页面测试专用：单张图片 Base64 纯净推理与仿真
     nlohmann::json testSingleImage(const std::string& b64_img);
@@ -116,6 +127,7 @@ private:
 
     std::shared_ptr<CppPersonEngine> person_engine_;
     std::shared_ptr<CppGestureEngine> gesture_engine_;
+    std::shared_ptr<CppVoiceEngine> voice_engine_;
     std::shared_ptr<CompositePolicy> composite_policy_;
     std::shared_ptr<IUnlockActuator> actuator_;
 
@@ -141,6 +153,10 @@ private:
     std::string live_person_ = "None";
     float live_score_ = 0.0f;
     bool live_has_stranger_ = false;
+    std::string live_voice_stage_ = "IDLE";
+    std::string live_voice_command_ = "NONE";
+    std::string live_voice_person_ = "None";
+    float live_voice_score_ = 0.0f;
 
     // 审计与统计
     uint64_t next_event_id_ = 1;

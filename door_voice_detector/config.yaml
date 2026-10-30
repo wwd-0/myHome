@@ -1,0 +1,59 @@
+# ==============================================================================
+# MyHome 方案 A：两级超轻量级联语音门禁模型训练与导出配置
+# Stage 1: BC-ResNet + MDTC 超轻量口令识别与闲聊拒识网 (~0.11M 参数, < 0.5MB)
+# Stage 2: FCM + CAM-DTDNN + ASP 超轻量声纹特征提取网 (~1.1M 参数, 192维 L2 向量)
+# ==============================================================================
+
+audio:
+  sample_rate: 16000
+  duration_sec: 1.60          # 统一推理帧窗 1.60 秒 -> T = 160 帧
+  n_fft: 512
+  win_length: 400             # 25ms
+  hop_length: 160             # 10ms
+  n_mels: 80
+  f_min: 20.0
+  f_max: 7600.0
+  pre_emphasis: 0.97
+  vad_rms_threshold: 0.012
+
+commands:
+  # 默认支持的 10 种开门语音口令（按顺序对应类别 1..10，类别 0 为 UNKNOWN 闲聊/噪音拒识类）
+  list:
+    - "芝麻开门"
+    - "开门开门"
+    - "请打开门"
+    - "打开房门"
+    - "我回来了"
+    - "芝麻请开门"
+    - "你好开门"
+    - "欢迎回家"
+    - "请开一下门"
+    - "解锁开门"
+
+stage1_command_net:
+  embed_dim: 128
+  base_channels: 24
+  mdtc_channels: 96
+  epochs: 35
+  batch_size: 32
+  lr: 0.002
+
+stage2_speaker_net:
+  embed_dim: 192
+  stem_channels: 32
+  init_channels: 192
+  growth_rate: 48
+  num_cam_layers: 4
+  aam_margin: 0.25
+  aam_scale: 30.0
+  epochs: 40
+  batch_size: 32
+  lr: 0.0015
+
+paths:
+  dataset_dir: "./door_voice_detector/dataset"
+  weights_dir: "./door_voice_detector/weights"
+  export_dir: "./audio/models"
+  kws_onnx_name: "command_kws_mdtc.onnx"
+  sv_onnx_name: "speaker_campp_lite.onnx"
+  commands_json_name: "commands.json"

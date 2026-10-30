@@ -183,16 +183,56 @@ std::vector<std::string> GesturePolicy::getAllowedGestures() const {
 }
 
 // ============================================================================
-// VoicePolicy 实现 (预留)
+// VoicePolicy 实现 (独立语音口令 + 声纹核验开门策略，无需按键/人脸配合)
 // ============================================================================
+
+VoicePolicy::VoicePolicy(const std::vector<std::string>& allowed_commands)
+    : allowed_commands_(allowed_commands) {}
 
 std::optional<UnlockDecision> VoicePolicy::evaluate(const AuthEvent& event) {
     if (event.type != AuthEventType::VoiceCommand) return std::nullopt;
-    // 预留后续声纹与 ASR 模型
-    return std::nullopt;
+
+    const auto& vr = event.voice_result;
+    if (!vr.vad_passed || !vr.command_matched || !vr.is_family) {
+        return std::nullopt;
+    }
+    if (vr.command.empty() || vr.command == "NONE" || vr.person.empty() || vr.person == "None") {
+        return std::nullopt;
+    }
+
+    {
+        std::lock_guard<std::mutex> lk(mtx_);
+        if (!allowed_commands_.empty()) {
+            bool allowed = std::find(allowed_commands_.begin(), allowed_commands_.end(), vr.command) != allowed_commands_.end();
+            if (!allowed) return std::nullopt;
+        }
+    }
+
+    UnlockDecision decision;
+    decision.passed = true;
+    decision.person = vr.person;
+    decision.score = vr.speaker_score;
+    decision.auth_mode = name();
+    decision.action = "VOICE:" + vr.command;
+    decision.detail = "语音口令「" + vr.command + "」声纹核验通过，独立开门";
+    decision.elapsed_ms = (event.elapsed_ms > 0)
+                              ? event.elapsed_ms
+                              : std::max(1, static_cast<int>(std::round(vr.latency_ms)));
+    decision.relay_pulse_ms = 500;
+    return decision;
 }
 
 void VoicePolicy::reset() {}
+
+void VoicePolicy::setAllowedCommands(const std::vector<std::string>& commands) {
+    std::lock_guard<std::mutex> lk(mtx_);
+    allowed_commands_ = commands;
+}
+
+std::vector<std::string> VoicePolicy::getAllowedCommands() const {
+    std::lock_guard<std::mutex> lk(mtx_);
+    return allowed_commands_;
+}
 
 // ============================================================================
 // CompositePolicy 实现

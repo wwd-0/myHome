@@ -85,16 +85,38 @@ vision:
       # "妈妈": "VICTORY"
 
 # ------------------------------------------------------------------------------
-# 3. 音频声纹模块配置 (对应目录: ./audio/)
+# 3. 音频口令与声纹模块配置 - 方案 A 两级轻量微模型级联 (对应目录: ./audio/)
+#    唤醒机制: 涂鸦人体传感器触发拉流时同步从摄像头流采集音频，语音核验独立开门（无需按开关或人脸配合）
 # ------------------------------------------------------------------------------
 audio:
-  # 存放家里 6 个人语音样本的目录（16kHz 单声道 wav，如：爸爸.wav、妈妈.wav）
+  enabled: true
+  # 音频流来源: "auto" 表示跟随 vision.camera_source 从摄像头流提取音轨 (RTSP 音轨或本地麦克风)
+  stream_source: "auto"
+  # 存放家里最多 10 位成员语音样本的目录（16kHz 单声道 wav，支持 <人名>__<口令>_1.wav 同口令模板或 <人名>_1.wav）
   db_dir: "./audio/db/voices"
-  # 3D-Speaker CAM++ 中文预训练 ONNX 模型路径 (位于 ./audio/models/ 下)
-  model_path: "./audio/models/3dspeaker_speech_campplus_sv_zh-cn_16k-common.onnx"
-  # 声纹 1:1 核验余弦相似度阈值 (因为已经有“人脸ID”做前置锚定，0.58~0.62 既安全又极易通过)
+  max_members: 10
+  # 第一级：BC-ResNet + MDTC 轻量口令识别与闲聊拒识 ONNX 模型
+  kws_model_path: "./audio/models/command_kws_mdtc.onnx"
+  # 第二级：FCM + CAM-DTDNN + ASP 轻量声纹特征提取 ONNX 模型
+  sv_model_path: "./audio/models/speaker_campp_lite.onnx"
+  commands_meta_path: "./audio/models/commands.json"
+  # 第一级口令置信度阈值 (低于此值或命中 UNKNOWN 类则直接判定为日常闲聊丢弃)
+  command_threshold: 0.55
+  # 第二级声纹 1:N 余弦相似度阈值 (低于此值判定为陌生人拦截)
   similarity_threshold: 0.60
-  # 每次声纹核验采集的语音时长（秒）
-  sample_duration_sec: 2.0
-  # 触发声纹采集的最小音量能量阈值 (RMS)，只有检测到人在说话时才送入声纹模型
+  # 每次语音核验标准分析窗口时长（秒）
+  sample_duration_sec: 1.6
+  # 触发语音截取的最小音量能量阈值 (RMS)，仅当检测到有效人声说话时才送入两级模型
   vad_energy_threshold: 0.015
+  # 支持的 10 种开门语音口令列表
+  unlock_commands:
+    - "芝麻开门"
+    - "开门开门"
+    - "请打开门"
+    - "打开房门"
+    - "我回来了"
+    - "芝麻请开门"
+    - "你好开门"
+    - "欢迎回家"
+    - "请开一下门"
+    - "解锁开门"

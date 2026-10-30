@@ -3,6 +3,7 @@
 #include "actuator.hpp"
 #include "person_engine.hpp"
 #include "gesture_engine.hpp"
+#include "voice_engine.hpp"
 
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
@@ -118,7 +119,7 @@ void runHttpServer(std::shared_ptr<myhome::VerifyServiceCoordinator> coordinator
     std::cout << "   • 页面测试 API: POST /api/test_image (支持大图 Base64 上传与纯净感知输出)" << std::endl;
     std::cout << "   • 成员底库 API: GET /api/members, POST /api/upload_photo, POST /api/delete_photo" << std::endl;
     std::cout << "   • 开关互锁 API: POST /api/switch_trigger, GET /api/switch_verify" << std::endl;
-    std::cout << "   • 声音预留 API: POST /api/verify_voice" << std::endl;
+    std::cout << "   • 语音核验 API: GET /api/voice_summary, POST /api/upload_voice, POST /api/verify_voice" << std::endl;
     std::cout << "   • 硬件脉冲模拟: POST /api/test_relay" << std::endl;
 
     while (true) {
@@ -281,6 +282,28 @@ void runHttpServer(std::shared_ptr<myhome::VerifyServiceCoordinator> coordinator
                 return;
             }
 
+            // 2.6 声纹样本 WAV 流送 /api/voice_file?file=xxx
+            if (path == "/api/voice_file") {
+                std::string file_param = getQueryParam(query_str, "file");
+                auto bin = coordinator->getVoiceFileBinary(file_param);
+                if (!bin.empty()) {
+                    std::ostringstream hdr;
+                    hdr << "HTTP/1.1 200 OK\r\n"
+                        << "Content-Type: audio/wav\r\n"
+                        << "Content-Length: " << bin.size() << "\r\n"
+                        << "Cache-Control: no-cache\r\n"
+                        << "Access-Control-Allow-Origin: *\r\n"
+                        << "Connection: close\r\n\r\n";
+                    safeSocketWrite(client_fd, hdr.str());
+                    safeSocketWriteBinary(client_fd, bin);
+                } else {
+                    std::string nf = "HTTP/1.1 404 Not Found\r\n\r\n";
+                    safeSocketWrite(client_fd, nf);
+                }
+                ::close(client_fd);
+                return;
+            }
+
             // 3. 实时预览帧 /api/frame.jpg
             if (path == "/api/frame.jpg") {
                 auto jpg = coordinator->getLatestJpeg();
@@ -337,11 +360,33 @@ void runHttpServer(std::shared_ptr<myhome::VerifyServiceCoordinator> coordinator
                 resp_json = coordinator->handleSmartSwitchVerifyQuery();
             } else if (path == "/api/verify_voice") {
                 try {
-                    auto j = json::parse(req_body);
+                    auto j = req_body.empty() ? json::object() : json::parse(req_body);
                     resp_json = coordinator->handleVoiceVerify(j);
                 } catch (...) {
                     resp_json = json{{"error", "Invalid payload"}};
                 }
+            } else if (path == "/api/voice_summary") {
+                resp_json = coordinator->getVoiceSummary();
+            } else if (path == "/api/upload_voice") {
+                try {
+                    auto j = json::parse(req_body);
+                    std::string name = j.value("name", "");
+                    std::string cmd = j.value("command", "");
+                    std::string b64 = j.value("audio", "");
+                    resp_json = coordinator->uploadVoiceSample(name, cmd, b64);
+                } catch (...) {
+                    resp_json = json{{"error", "Invalid payload"}};
+                }
+            } else if (path == "/api/delete_voice") {
+                try {
+                    auto j = json::parse(req_body);
+                    std::string f = j.value("file", "");
+                    resp_json = coordinator->deleteVoiceSample(f);
+                } catch (...) {
+                    resp_json = json{{"error", "Invalid payload"}};
+                }
+            } else if (path == "/api/reload_voice") {
+                resp_json = coordinator->reloadVoiceGallery();
             } else if (path == "/api/verify") {
                 resp_json = coordinator->requestVerifySync();
             } else if (path == "/api/start_verify" || path == "/api/verify_request") {
@@ -441,11 +486,33 @@ int main(int argc, char** argv) {
         }
     }
 
+    myhome::VoiceEngineConfig voice_cfg;
+    if (cfg["audio"]) {
+        const auto& ac = cfg["audio"];
+        if (ac["enabled"]) voice_cfg.enabled = ac["enabled"].as<bool>(true);
+        if (ac["stream_source"]) voice_cfg.stream_source = ac["stream_source"].as<std::string>("auto");
+        if (ac["db_dir"]) voice_cfg.db_dir = ac["db_dir"].as<std::string>("./audio/db/voices");
+        if (ac["max_members"]) voice_cfg.max_members = ac["max_members"].as<int>(10);
+        if (ac["kws_model_path"]) voice_cfg.kws_model_path = ac["kws_model_path"].as<std::string>("./audio/models/command_kws_mdtc.onnx");
+        if (ac["sv_model_path"]) voice_cfg.sv_model_path = ac["sv_model_path"].as<std::string>("./audio/models/speaker_campp_lite.onnx");
+        if (ac["commands_meta_path"]) voice_cfg.commands_meta_path = ac["commands_meta_path"].as<std::string>("./audio/models/commands.json");
+        if (ac["command_threshold"]) voice_cfg.command_threshold = ac["command_threshold"].as<float>(0.55f);
+        if (ac["similarity_threshold"]) voice_cfg.similarity_threshold = ac["similarity_threshold"].as<float>(0.60f);
+        if (ac["vad_energy_threshold"]) voice_cfg.vad_energy_threshold = ac["vad_energy_threshold"].as<float>(0.015f);
+        if (ac["unlock_commands"]) {
+            voice_cfg.unlock_commands.clear();
+            for (const auto& c : ac["unlock_commands"]) {
+                voice_cfg.unlock_commands.push_back(c.as<std::string>());
+            }
+        }
+    }
+
     std::cout << "========================================================================" << std::endl;
     std::cout << "🚀 MyHome 智能门禁控制服务 (遵循六大设计原则架构重构版)" << std::endl;
     std::cout << "   • 模式 1: 人体 + 手势 (允许手势数: " << allowed_gestures.size() << ")" << std::endl;
     std::cout << "   • 模式 2: 人体 + 智能开关 (C++ 统一控制开门，前后 " << switch_face_window_sec << "s 互锁判定)" << std::endl;
-    std::cout << "   • 模式 3: 声音核验 (接口预留)" << std::endl;
+    std::cout << "   • 模式 3: 声音核验 (方案A 两级级联: " << voice_cfg.unlock_commands.size()
+              << " 种口令 + 最多 " << voice_cfg.max_members << " 位家人声纹，独立开门)" << std::endl;
     std::cout << "   • 防抖/冷却: 确认帧数=" << confirm_frames << ", 开门冷却=" << unlock_cooldown_sec << "s" << std::endl;
     std::cout << "   • 人脸快照: " << (snap_cfg.enabled ? "已开启" : "已关闭")
               << " | 根目录=" << snap_cfg.root_dir
@@ -469,11 +536,13 @@ int main(int argc, char** argv) {
         allowed_gestures,
         confirm_frames);
 
+    auto voice_engine = std::make_shared<myhome::CppVoiceEngine>(voice_cfg);
+
     // 装配开门判定策略组合器 (Strategy Pattern & Composite Pattern - 遵循 OCP)
     auto composite_policy = std::make_shared<myhome::CompositePolicy>();
     composite_policy->addPolicy(std::make_shared<myhome::SwitchWindowPolicy>(switch_face_window_sec));
     composite_policy->addPolicy(std::make_shared<myhome::GesturePolicy>(allowed_gestures));
-    composite_policy->addPolicy(std::make_shared<myhome::VoicePolicy>());
+    composite_policy->addPolicy(std::make_shared<myhome::VoicePolicy>(voice_cfg.unlock_commands));
 
     // 装配执行器与冷却装饰器 (Decorator Pattern - 遵循 OCP & SRP)
     auto raw_actuator = std::make_shared<myhome::HaWebhookAndRelayActuator>(ha_url, unlock_webhook, 500);
@@ -481,7 +550,7 @@ int main(int argc, char** argv) {
 
     // 装配核心协调器 (Facade Pattern - 遵循 LoD, SRP, DIP)
     auto coordinator = std::make_shared<myhome::VerifyServiceCoordinator>(
-        person_engine, gesture_engine, composite_policy, actuator, cam_source, active_window_sec);
+        person_engine, gesture_engine, voice_engine, composite_policy, actuator, cam_source, active_window_sec);
     coordinator->configureSnapshots(snap_cfg);
 
     // 自检模式

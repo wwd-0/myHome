@@ -11,6 +11,7 @@ import { MembersView } from './views/members-view.js';
 import { SystemView } from './views/system-view.js';
 import { HelpView } from './views/help-view.js';
 import { SnapshotsView } from './views/snapshots-view.js';
+import { VoiceView } from './views/voice-view.js';
 
 class Application {
   constructor() {
@@ -41,6 +42,7 @@ class Application {
     this.systemView = new SystemView();
     this.helpView = new HelpView();
     this.snapshotsView = new SnapshotsView();
+    this.voiceView = new VoiceView();
   }
 
   // 一级目录折叠/展开手风琴交互
@@ -123,6 +125,10 @@ class Application {
         title: '人脸自动抓拍快照库',
         subtitle: '按身份独立子目录归档 · 支持页面配置抓拍间隔并保存至配置文件 · 超过 500 张自动清理最早 100 张'
       },
+      voice: {
+        title: '语音口令与声纹核验中心',
+        subtitle: '方案 A 两级微模型级联 (10种口令 + 10位家人声纹) · 随摄像头拉流采集音频 · 独立直接开门'
+      },
       system: {
         title: '系统运维与架构监控',
         subtitle: 'C++17 HTTP 核心 + PyTorch MPS 运行状态 · 硬件 GPIO 脉冲与 HA 联动审计'
@@ -173,6 +179,8 @@ class Application {
         store.fetchMembers();
       } else if (tabKey === 'snapshots') {
         store.fetchSnapshots();
+      } else if (tabKey === 'voice') {
+        store.fetchVoiceSummary();
       } else {
         store.fetchStatus();
       }

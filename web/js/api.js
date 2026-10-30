@@ -56,12 +56,38 @@ export class ApiClient {
     return this.request('/api/verify', { method: 'POST', body: '{}' });
   }
 
-  // 声音核验 (预留)
-  async verifyVoice(text = '芝麻开门') {
+  // 方案 A 两级语音核验 (独立口令 + 声纹核验开门)
+  async verifyVoice(base64Audio = '') {
     return this.request('/api/verify_voice', {
       method: 'POST',
-      body: JSON.stringify({ audio: 'dummy', text })
+      body: JSON.stringify({ audio: base64Audio })
     });
+  }
+
+  // 获取声纹底库与 10 种通行口令配置汇总
+  async getVoiceSummary() {
+    return this.request('/api/voice_summary');
+  }
+
+  // 上传家人声纹样本 WAV (支持绑定特定口令模板)
+  async uploadVoice(name, command, base64Audio) {
+    return this.request('/api/upload_voice', {
+      method: 'POST',
+      body: JSON.stringify({ name, command, audio: base64Audio })
+    });
+  }
+
+  // 删除指定声纹样本 WAV
+  async deleteVoice(file) {
+    return this.request('/api/delete_voice', {
+      method: 'POST',
+      body: JSON.stringify({ file })
+    });
+  }
+
+  // 重新加载语音 ONNX 模型与声纹模板库
+  async reloadVoice() {
+    return this.request('/api/reload_voice', { method: 'POST', body: '{}' });
   }
 
   // 单张照片端到端推理测试
