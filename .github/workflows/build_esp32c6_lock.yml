@@ -9,13 +9,19 @@ jobs:
     runs-on: ubuntu-22.04
     container:
       image: espressif/idf:v5.1.2
+      options: --user root
 
     steps:
+      - name: Fix Git Permissions
+        run: git config --global --add safe.directory '*'
+
       - name: Checkout Repository
         uses: actions/checkout@v3
 
       - name: Build Firmware for ESP32-C6
+        shell: bash
         run: |
+          . /opt/esp/idf/export.sh
           cd zigbee_lock_esp32c6
           idf.py set-target esp32c6
           idf.py build
@@ -28,5 +34,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: myhome_esp32c6_zigbee_lock_firmware
-          path: |
-            zigbee_lock_esp32c6/build/merged_firmware_0x0.bin
+          path: zigbee_lock_esp32c6/build/merged_firmware_0x0.bin
