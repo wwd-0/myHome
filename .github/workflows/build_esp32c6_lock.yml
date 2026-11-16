@@ -16,7 +16,7 @@ jobs:
         run: git config --global --add safe.directory '*'
 
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Build Firmware for ESP32-C6
         shell: bash
@@ -31,7 +31,7 @@ jobs:
             0x10000 build/myhome_zigbee_lock_esp32c6.bin
 
       - name: Archive Binaries
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: myhome_esp32c6_zigbee_lock_firmware
           path: zigbee_lock_esp32c6/build/merged_firmware_0x0.bin
