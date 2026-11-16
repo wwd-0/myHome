@@ -45,6 +45,7 @@ static void pulse_timer_callback(TimerHandle_t xTimer)
 
     s_in_cooldown = true;
     xTimerStart(s_cooldown_timer, 0);
+    ESP_LOGI(TAG, "Door lock pulse finished, restored to locked state");
 }
 
 static void cooldown_timer_callback(TimerHandle_t xTimer)
@@ -57,6 +58,7 @@ static void trigger_unlock_pulse(void)
     if (s_in_cooldown) {
         return;
     }
+    ESP_LOGI(TAG, "Triggering unlock pulse (300ms)...");
     gpio_set_level(UNLOCK_GPIO_PIN, 1);
     xTimerStart(s_pulse_timer, 0);
 }
@@ -87,6 +89,11 @@ static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id,
     return ESP_OK;
 }
 
+static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask)
+{
+    esp_zb_bdb_start_top_level_commissioning(mode_mask);
+}
+
 void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
 {
     uint32_t *p_sg_p = signal_struct->p_app_signal;
@@ -104,13 +111,13 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
                 esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING);
             }
         } else {
-            esp_zb_scheduler_alarm((esp_zb_callback_t)esp_zb_bdb_start_top_level_commissioning,
+            esp_zb_scheduler_alarm((esp_zb_callback_t)bdb_start_top_level_commissioning_cb,
                                    ESP_ZB_BDB_MODE_INITIALIZATION, 1000);
         }
         break;
     case ESP_ZB_BDB_SIGNAL_STEERING:
         if (err_status != ESP_OK) {
-            esp_zb_scheduler_alarm((esp_zb_callback_t)esp_zb_bdb_start_top_level_commissioning,
+            esp_zb_scheduler_alarm((esp_zb_callback_t)bdb_start_top_level_commissioning_cb,
                                    ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
         }
         break;
@@ -139,7 +146,14 @@ static void button_task(void *pvParameters)
 
 static void esp_zb_task(void *pvParameters)
 {
-    esp_zb_cfg_t zb_nwk_cfg = ESP_ZB_ZED_CONFIG();
+    esp_zb_cfg_t zb_nwk_cfg = {
+        .esp_zb_role = ESP_ZB_DEVICE_TYPE_ED,
+        .install_code_policy = false,
+        .nwk_cfg.zed_cfg = {
+            .ed_timeout = ESP_ZB_ED_0_MINUTES,
+            .keep_alive = 3000,
+        },
+    };
     esp_zb_init(&zb_nwk_cfg);
 
     /* 发射功率优化：限制在 +10dBm */
@@ -153,7 +167,7 @@ static void esp_zb_task(void *pvParameters)
     esp_zb_core_action_handler_register(zb_action_handler);
     esp_zb_set_primary_network_channel_set(ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK);
     esp_zb_start(false);
-    esp_zb_main_loop_iteration();
+    esp_zb_stack_main_loop();
 }
 
 void app_main(void)
