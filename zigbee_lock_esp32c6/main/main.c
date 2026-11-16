@@ -150,7 +150,7 @@ static void esp_zb_task(void *pvParameters)
         .esp_zb_role = ESP_ZB_DEVICE_TYPE_ED,
         .install_code_policy = false,
         .nwk_cfg.zed_cfg = {
-            .ed_timeout = ESP_ZB_ED_0_MINUTES,
+            .ed_timeout = ESP_ZB_ED_AGING_TIMEOUT_64MIN,
             .keep_alive = 3000,
         },
     };
