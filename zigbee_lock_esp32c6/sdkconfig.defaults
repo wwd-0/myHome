@@ -1,0 +1,34 @@
+# ==============================================================================
+# ESP32-C6 Super Mini 极致低功耗与芯片剪裁配置 (sdkconfig.defaults)
+# 目标：常态 1.5 秒轮询，平均电流压至 ~120μA，实现 1.5~2 年以上电池续航
+# ==============================================================================
+
+# 1. 目标芯片与 CPU 频率剪裁 (降频至 40MHz，削减 70% 动态功耗)
+CONFIG_IDF_TARGET="esp32c6"
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_40=y
+
+# 2. 自动电源管理与 Tickless 深度轻度睡眠 (Light Sleep)
+CONFIG_PM_ENABLE=y
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
+CONFIG_PM_SLP_DEFAULT_PARAMS_OPT=y
+
+# 3. 彻底断电未使用的通信模块 (彻底切除 Wi-Fi 6 与 Bluetooth 5)
+CONFIG_ESP_WIFI_ENABLED=n
+CONFIG_BT_ENABLED=n
+
+# 4. 802.15.4 射频与 Zigbee 3.0 休眠终端 (ZED)
+CONFIG_IEEE802154_ENABLED=y
+CONFIG_ZB_ED_ROLE=y
+CONFIG_ZB_RADIO_NATIVE=y
+
+# 5. Flash 存储器自动深度掉电 (Deep Power Down, DPD < 1μA)
+CONFIG_SPI_FLASH_AUTO_SUSPEND=y
+CONFIG_SPI_FLASH_ROM_DRIVER_PATCH=y
+
+# 6. 关闭 USB-Serial-JTAG 待机漏电与无用调试输出
+CONFIG_ESP_CONSOLE_NONE=y
+CONFIG_LOG_DEFAULT_LEVEL_NONE=y
+
+# 7. Flash 分区表与空间优化
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+

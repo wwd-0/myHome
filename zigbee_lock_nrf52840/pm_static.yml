@@ -1,0 +1,38 @@
+# ==============================================================================
+# Pro Micro nRF52840 (Nice!Nano v2) 专用静态 Flash 分区表 (pm_static.yml)
+# 核心作用：
+#   1. 保护顶部 0xF4000 ~ 0x100000 (48KB) 的出厂 UF2 Bootloader 不被擦除！
+#   2. 将用户应用程序直接放置于 0x01000，兼容 nRF52840 MBR 并获得全速 802.15.4 无线性能
+#   3. 独立分配 ZBOSS NVRAM 分区用于持久化保存 Zigbee 网络密钥与信道
+# ==============================================================================
+
+mbr:
+  address: 0x00000
+  size: 0x01000
+  region: flash_primary
+
+app:
+  address: 0x01000
+  size: 0xDF000
+  region: flash_primary
+
+zboss_nvram:
+  address: 0xE0000
+  size: 0x08000
+  region: flash_primary
+
+zboss_product_config:
+  address: 0xE8000
+  size: 0x02000
+  region: flash_primary
+
+settings_storage:
+  address: 0xEA000
+  size: 0x0A000
+  region: flash_primary
+
+uf2_bootloader:
+  address: 0xF4000
+  size: 0x0C000
+  region: flash_primary
+

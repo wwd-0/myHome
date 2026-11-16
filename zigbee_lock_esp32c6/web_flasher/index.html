@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32-C6 门锁控制器网页免驱动一键烧录工具</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #101726;
+      --border: #1e2c42;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --success: #10b981;
+      --danger: #ef4444;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+    }
+    body {
+      margin: 0;
+      padding: 30px 20px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      max-width: 680px;
+      width: 100%;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    h1 {
+      font-size: 20px;
+      margin-top: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--accent);
+    }
+    p {
+      color: var(--muted);
+      font-size: 13.5px;
+      line-height: 1.6;
+    }
+    .step-box {
+      background: #090e18;
+      border: 1px solid #1a273b;
+      border-radius: 10px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+    .step-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .btn {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 22px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: linear-gradient(135deg, #0369a1, #1d4ed8);
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .log-box {
+      background: #04060a;
+      border: 1px solid #141e2e;
+      border-radius: 8px;
+      padding: 12px;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 12px;
+      color: #38bdf8;
+      max-height: 240px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      margin-top: 16px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1><span>⚡</span> ESP32-C6 Zigbee 门锁固件一键网页刷机</h1>
+      <p>
+        本工具使用现代浏览器原生 <strong>Web Serial API</strong> 与 ESP32-C6 直接通信。
+        <strong>完全不需要在本地电脑安装 Python、esptool、驱动或 VS Code！</strong>
+      </p>
+
+      <div class="step-box">
+        <div class="step-title">第一步：将 ESP32-C6 Super Mini 用 Type-C 数据线插到电脑</div>
+        <div style="font-size: 12.5px; color: var(--muted);">
+          确保数据线具备数据传输功能（非纯充电线）。插好后准备下一步。
+        </div>
+      </div>
+
+      <div class="step-box">
+        <div class="step-title">第二步：选择合并好的完整固件文件 (merged_firmware_0x0.bin)</div>
+        <input type="file" id="firmwareInput" accept=".bin" style="font-size: 13px; color: var(--muted);" />
+        <div style="font-size: 11.5px; color: var(--muted); margin-top: 6px;">
+          * 可在 GitHub Actions 构建产物中下载 <code>myhome_esp32c6_zigbee_lock_firmware.zip</code> 解压获得。
+        </div>
+      </div>
+
+      <div class="step-box">
+        <div class="step-title">第三步：点击下方按钮连接串口并一键烧录</div>
+        <button class="btn" id="btnFlash">
+          <span>🚀 连接 ESP32-C6 并一键烧录</span>
+        </button>
+      </div>
+
+      <div class="log-box" id="logBox">等待操作...\n支持 Chrome、Edge、Brave 等 Chromium 内核浏览器。</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@0.4.3/bundle.esptool.js";
+
+    const logBox = document.getElementById("logBox");
+    const btnFlash = document.getElementById("btnFlash");
+    const firmwareInput = document.getElementById("firmwareInput");
+
+    function log(msg) {
+      logBox.textContent += msg + "\n";
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    btnFlash.addEventListener("click", async () => {
+      const file = firmwareInput.files[0];
+      if (!file) {
+        alert("请先选择固件文件 (merged_firmware_0x0.bin)！");
+        return;
+      }
+
+      if (!("serial" in navigator)) {
+        alert("当前浏览器不支持 Web Serial API，请使用 Chrome 或 Edge 浏览器！");
+        return;
+      }
+
+      btnFlash.disabled = true;
+      logBox.textContent = "";
+      log("👉 正在请求串口访问，请在弹窗中选择你的 ESP32-C6 设备...");
+
+      try {
+        const port = await navigator.serial.requestPort();
+        const transport = new Transport(port);
+        const espLoader = new ESPLoader(transport, 115200, {
+          log: (str) => log(str),
+          debug: () => {},
+          error: (str) => log("❌ " + str),
+          info: (str) => log("ℹ️ " + str)
+        });
+
+        log("🔗 正在握手并连接 ESP32-C6...");
+        const chip = await espLoader.main_fn();
+        log(`✅ 成功识别芯片: ${chip}`);
+
+        const fileArrayBuffer = await file.arrayBuffer();
+        const fileBytes = new Uint8Array(fileArrayBuffer);
+
+        log(`📦 正在烧录固件到 0x0000 地址 (文件大小: ${fileBytes.length} 字节)...`);
+        await espLoader.write_flash({
+          fileArray: [{ data: fileBytes, address: 0x0 }],
+          flash_size: "keep",
+          erase_all: false,
+          compress: true,
+          report_progress: (fileIndex, written, total) => {
+            const pct = Math.floor((written / total) * 100);
+            if (pct % 20 === 0) log(`⏳ 进度: ${pct}%`);
+          }
+        });
+
+        log("🎉 烧录全部完成！ESP32-C6 正在自动重启...");
+        await espLoader.hard_reset();
+        log("✅ 固件已开始运行，你可以拔下 USB 并接入门锁！");
+      } catch (err) {
+        log("❌ 发生错误: " + err.message);
+      } finally {
+        btnFlash.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
+
